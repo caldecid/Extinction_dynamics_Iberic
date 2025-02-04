@@ -15,7 +15,7 @@ path_and <- "Data/Processed/andalucia_ages_total.csv"
 
 
 # FUnction
-quant_analysis <- function(path, name_file = "pen") {
+quant_analysis <- function(path, name_file) {
   # Data
   x <- read_csv(path)
   non_data <- x %>%  filter(ext_fraction == "low_ex") %>%
