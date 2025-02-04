@@ -44,3 +44,24 @@ calculate_PD_curve <- function(tree, df) {
   return(pd_curve)
 }
 
+
+# Define a custom function to extract and format coefficients
+tidy_rq_summary <- function(rq_sum) {
+  
+  require(dplyr)
+  require(purrr)
+  
+  # Extract the coefficients matrix
+  coef_mat <- rq_sum$coefficients
+  # Convert it to a data frame and add a column for the term names
+  coef_df <- as.data.frame(coef_mat)
+  coef_df <- tibble::rownames_to_column(coef_df, var = "term")
+  # Optionally, rename columns for clarity
+  coef_df <- coef_df %>%
+    rename(estimate = Value,
+           std.error = `Std. Error`,
+           t.value = `t value`,
+           p.value = `Pr(>|t|)`) %>% 
+    filter(term != "(Intercept)")
+  return(coef_df)
+}
