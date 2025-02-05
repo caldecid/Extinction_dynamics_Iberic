@@ -14,7 +14,7 @@ path_pen <- "Data/Processed/peninsula_ages_total.csv"
 path_and <- "Data/Processed/andalucia_ages_total.csv"
 
 
-# FUnction
+# Function to avoid repeating the code for both areas
 quant_analysis <- function(path, name_file) {
   # Data
   x <- read_csv(path)
