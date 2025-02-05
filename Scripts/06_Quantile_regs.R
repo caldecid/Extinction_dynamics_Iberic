@@ -57,35 +57,29 @@ quant_analysis <- function(path, name_file) {
   write_csv(q_pen, paste0("Results/Quantile_reg_", name_file, ".csv"))
   
   # Figure
-  colors_scale <- c("#000000", "#d9d9d9")
+
   
-  png(
-    paste0("Figures/Figure_", name_file, "_quant.png"),
-    width = 30,
-    height = 20,
-    units = "cm",
-    pointsize = 8,
-    res = 300
-  )
-  quantile_pen <- data_quant_pen %>%
-    ggplot(aes(x = mean_age, y = proportion_threatened)) +
-    geom_point(col = "Gray") +
-    stat_quantile(
-      aes(color = after_stat(quantile)),
-      quantiles = q10,
-      size = 1,
-      alpha = .5,
-      show.legend = TRUE
-    ) +
-    scale_color_gradientn(colors = colors_scale)  + 
-    labs(x = "Genus age", y = "Prop. of threatened species") +
-    scale_x_log10() +
-    facet_wrap(. ~ Corrected, scale = "free") +
-    theme_bw()
-  quantile_pen
+data_quant_pen %>%
+  ggplot(aes(x = mean_age, y = proportion_threatened)) +
+  geom_point(col = "Gray") +
+  stat_quantile(
+    aes(color = after_stat(quantile)),
+    quantiles = q10,
+    size = 1,
+    alpha = .5,
+    show.legend = TRUE) +
+  scale_color_gradient(low = "#000000", high = "#d9d9d9" )  + 
+  labs(x = "Genus age", y = "Prop. of threatened species") +
+  scale_x_log10() +
+  facet_wrap(. ~ Corrected, scale = "free") +
+  theme_bw() 
   
-  dev.off()
-  return(list(q_pen, quantile_pen))
+  ggsave(filename = paste0("Figures/Figure_", name_file, "_quant.png"),
+         width = 30,
+         height = 20,
+         units = "cm")
+  
+  return(list(q_pen))
 }
 
 # Results
