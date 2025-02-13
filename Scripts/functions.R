@@ -65,3 +65,64 @@ tidy_rq_summary <- function(rq_sum) {
     filter(term != "(Intercept)")
   return(coef_df)
 }
+
+
+##############Continuous phylogenetic signal
+D_scale_cont <- function(ytree, xdata, 
+                         max_group = 783,
+                         by = 10,
+                         min_group = 10) {
+  mytree_scale <- ytree
+  pos <- match(mytree_scale$tip.label,
+               xdata$spp)
+  xdata <- xdata[pos,]
+  dist_tree <- as.matrix(cophenetic(mytree_scale))
+  quantis <- quantile(dist_tree,  seq(0.1, 1, 0.1))
+  mytree_scale_clus <-
+    as.hclust.phylo(force.ultrametric(mytree_scale))
+  grupos <- seq(min_group, max_group, by = by)
+  n_groups <- length(grupos)
+  groups <- matrix(nrow = Ntip(mytree_scale), ncol = n_groups)
+  
+  for (i in 1:n_groups) {
+    groups[, i] <- paste0("taxa", 
+                          cutree(mytree_scale_clus, grupos[i]))
+  }
+  colnames(groups) <- paste0("group", grupos)
+  xdata <- cbind(xdata, groups)
+  signals <- matrix(nrow = n_groups, ncol = 3)
+  pb = txtProgressBar(min = 0, max = n_groups, initial = 0,style= 3) 
+  
+  for (i in 1:n_groups) {
+    setTxtProgressBar(pb,i)
+    
+    category <- paste0("group", grupos[i])
+    mytree_scale$tip.label <- xdata[, category]
+    remove_tip <- which(duplicated(mytree_scale$tip.label))
+    higher_tree <- drop.tip(mytree_scale, remove_tip)
+    mydata_high <- aggregate_taxa(category = category, x = xdata)
+    trait <- setNames(as.numeric(as.character(mydata_high[, 2])),
+                      mydata_high[, 1])
+    phyloK <- phylosig(higher_tree, trait, "K", nsim = 1, niter=1)
+    phylo_lambda <- phylosig(higher_tree, trait, "lambda", nsim = 1, niter=1)
+    signals[i,] <- c(grupos[i],
+                     phylo_lambda$lambda,
+                     phyloK)
+  }
+  close(pb)
+  colnames(signals) <- c("N groups", "lambda", "K")
+  return(signals)
+}
+
+### Used to aggregate taxa values for the previous function
+aggregate_taxa <- function(x, category) {
+  taxa <- as.character(unique(x[, category]))
+  n <- length(taxa)
+  effect_neg <- character(n)
+  for (i in 1:n) {
+    efeitos <- x[x[, category] == taxa[i], "effect"]
+    effect_neg[i] <- mean(efeitos)
+  }
+  return(as.data.frame(cbind(taxa, effect_neg)))
+}
+
