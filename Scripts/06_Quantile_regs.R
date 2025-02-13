@@ -13,6 +13,20 @@ path_pen <- "Data/Processed/peninsula_ages_total.csv"
 # Andalucia
 path_and <- "Data/Processed/andalucia_ages_total.csv"
 
+################my theme###############################
+## themes
+mynamestheme <- theme(strip.text = element_text(family = "serif", size = (12)),
+                      plot.title = element_text(family = "serif", size = (15),
+                                                face = "bold", hjust = 0.5),
+                      axis.title = element_text(family = "serif", size = (13),
+                                                face = "bold"),
+                      axis.text = element_text(family = "serif", size = (12)),
+                      legend.title = element_text(family = "serif", size = (11),
+                                                  face = "bold"),
+                      legend.text = element_text(family = "serif", size = (11)),
+                      legend.background = element_rect(fill="gray90",
+                                                       size=.5, linetype="dotted"),
+                      legend.position = "right")
 
 # Function to avoid repeating the code for both areas
 quant_analysis <- function(path, name_file) {
@@ -72,7 +86,8 @@ data_quant_pen %>%
   labs(x = "Genus age", y = "Prop. of threatened species") +
   scale_x_log10() +
   facet_wrap(. ~ Corrected, scale = "free") +
-  theme_bw() 
+  theme_bw() +
+  mynamestheme
   
   ggsave(filename = paste0("Figures/Figure_", name_file, "_quant.png"),
          width = 30,
