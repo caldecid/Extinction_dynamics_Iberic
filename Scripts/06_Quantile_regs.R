@@ -28,7 +28,7 @@ mynamestheme <- theme(strip.text = element_text(family = "serif", size = (12)),
                                                        size=.5, linetype="dotted"),
                       legend.position = "right")
 
-# FUnction
+# Function to avoid repeating the code for both areas
 quant_analysis <- function(path, name_file) {
   # Data
   x <- read_csv(path)
@@ -60,7 +60,7 @@ quant_analysis <- function(path, name_file) {
     rq_pen_temp <- quantreg::rq(proportion_threatened ~ mean_age,
                                 data = data_quant_pen_temp,
                                 tau = q10)
-    rq_pen_temp2 <- summary(rq_pen_temp, se = "iid")
+    rq_pen_temp2 <- summary(rq_pen_temp, se = "boot")
     rq_pen[[i]] <- map_df(rq_pen_temp2, tidy_rq_summary, .id = "tau") %>%
       mutate(tau = q10) %>%
       select(-term)
