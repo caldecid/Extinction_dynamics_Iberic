@@ -62,6 +62,11 @@ null_auc <- colSums(null_pd_curves)
 p_value <- sum(abs(null_auc) >= abs(observed_auc)) / length(null_auc)
 
 
+#mean null auc
+mean_null_auc <- mean(null_auc)
+
+#confidence interval
+ci_null_auc <- quantile(null_auc, probs = c(0.05, 0.975))
 
 # Prepare data for plotting the PD curves
 
@@ -199,10 +204,13 @@ null_auc_andalucia <- colSums(null_pd_curves_andalucia)
 
 p_value_andalucia <- sum(abs(null_auc_andalucia) >= abs(observed_auc_andalucia)) / length(null_auc_andalucia)
 
+#mean null auc
+mean_null_auc_andalucia <- mean(null_auc_andalucia)
 
+#confidence interval
+ci_null_auc_andalucia <- quantile(null_auc_andalucia, probs = c(0.05, 0.975))
 
 # Prepare data for plotting the PD curves
-
 pd_curves_df_andalucia <- data.frame(
   step = 1:length(mean_pd_curve_andalucia),
   PD = mean_pd_curve_andalucia)
