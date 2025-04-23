@@ -48,9 +48,9 @@ coefs_pen_non <- data.frame(
 coefs_pen_non <- coefs_pen_non[-1,]
 
 coefs_pen_non$Term <- factor(coefs_pen_non$Term, levels = c("richness",
-                                                            "age", "lambda_a"),
+                                                            "age", "mean_lambda"),
                              labels = c("richness", "mean_age",
-                                        "lambda_mean"),
+                                        "mean_lambda"),
                              ordered = TRUE)
 
 ##corrected
@@ -78,7 +78,7 @@ coefs_pen_low <- coefs_pen_low[-1,]
 ##ordering
 coefs_pen_low$Term <- factor(coefs_pen_low$Term, levels = c("richness",
                                                             "mean_age",
-                                                            "lambda_mean"),
+                                                            "mean_lambda"),
                              ordered = TRUE)
 
 ##corrected
@@ -106,7 +106,7 @@ coefs_pen_int <- coefs_pen_int[-1,]
 ##ordering
 coefs_pen_int$Term <- factor(coefs_pen_int$Term, levels = c("richness",
                                                             "mean_age",
-                                                            "lambda_mean"),
+                                                            "mean_lambda"),
                              ordered = TRUE)
 
 ##corrected
@@ -134,7 +134,7 @@ coefs_pen_high <- coefs_pen_high[-1,]
 ##ordering
 coefs_pen_high$Term <- factor(coefs_pen_high$Term, levels = c("richness",
                                                               "mean_age",
-                                                              "lambda_mean"),
+                                                              "mean_lambda"),
                               ordered = TRUE)
 ##corrected
 coefs_pen_high$corrected <- "high_ext"
@@ -147,10 +147,10 @@ coefs_pen_total <- rbind(coefs_pen_non, coefs_pen_low,
 ##organizing
 coefs_pen_total$Term <- factor(coefs_pen_total$Term, levels = c("richness",
                                                               "mean_age",
-                                                              "lambda_mean"),
+                                                              "mean_lambda"),
                                labels = c("Richness",
                                           "Genus age",
-                                          "lambda"),
+                                          "Speciation rates"),
                               ordered = TRUE)
 
 coefs_pen_total$corrected <- factor(coefs_pen_total$corrected,
@@ -179,7 +179,7 @@ pen_coefs <- ggplot(coefs_pen_total, aes(x = Term, y = Estimate)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   labs(x = "Phylogenetic traits", y = "Coefficient Estimate")+
   theme_bw() +
-  ylim(-0.2, 0.2)+
+  #ylim(-0.2, 0.2)+
   scale_x_discrete(labels = c("Richness","Genus age", expression(~lambda)))+
   facet_wrap(~ corrected, nrow = 1) +
   ggtitle("Iberian Peninsula [GLM predictors]")+
@@ -197,7 +197,7 @@ pred_peninsula_non_age <- data.frame(age = seq(min(peninsula_traits_non$age),
                                         length.out = 100),
                                         richness = mean(peninsula_traits_non$richness,
                                                         na.rm = TRUE),
-                                        lambda_a = mean(peninsula_traits_non$lambda_a, na.rm = TRUE))
+                                        mean_lambda = mean(peninsula_traits_non$mean_lambda, na.rm = TRUE))
 
 # Get predicted values with confidence intervals
 pred_peninsula_non_age <- cbind(pred_peninsula_non_age,
@@ -213,8 +213,7 @@ pred_peninsula_non_age <- transform(pred_peninsula_non_age,
 pred_peninsula_non_age$corrected <- "not_corrected"
 
 ##changing names for binding
-pred_peninsula_non_age <- pred_peninsula_non_age %>% rename(mean_age = age,
-                                                            lambda_mean = lambda_a)
+pred_peninsula_non_age <- pred_peninsula_non_age %>% rename(mean_age = age)
 
 
 ############low extinction
@@ -224,7 +223,7 @@ pred_peninsula_low_age <- data.frame(mean_age = seq(min(peninsula_traits_low$mea
                                                length.out = 100),
                                      richness = mean(peninsula_traits_low$richness,
                                                      na.rm = TRUE),
-                                     lambda_mean = mean(peninsula_traits_low$lambda_mean,
+                                     mean_lambda = mean(peninsula_traits_low$mean_lambda,
                                                      na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -248,7 +247,7 @@ pred_peninsula_int_age <- data.frame(mean_age = seq(min(peninsula_traits_int$mea
                                                     length.out = 100),
                                      richness = mean(peninsula_traits_int$richness,
                                                      na.rm = TRUE),
-                                     lambda_mean = mean(peninsula_traits_int$lambda_mean,
+                                     mean_lambda = mean(peninsula_traits_int$mean_lambda,
                                                         na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -273,7 +272,7 @@ pred_peninsula_high_age <- data.frame(mean_age = seq(min(peninsula_traits_high$m
                                                     length.out = 100),
                                      richness = mean(peninsula_traits_high$richness,
                                                      na.rm = TRUE),
-                                     lambda_mean = mean(peninsula_traits_high$lambda_mean,
+                                    mean_lambda = mean(peninsula_traits_high$mean_lambda,
                                                         na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -343,7 +342,7 @@ pred_peninsula_non_richness <- data.frame(richness = seq(min(peninsula_traits_no
                                                length.out = 100),
                                      age = mean(peninsula_traits_non$age,
                                                      na.rm = TRUE),
-                                     lambda_a = mean(peninsula_traits_non$lambda_a, na.rm = TRUE))
+                                     mean_lambda = mean(peninsula_traits_non$mean_lambda, na.rm = TRUE))
 
 # Get predicted values with confidence intervals
 pred_peninsula_non_richness <- cbind(pred_peninsula_non_richness,
@@ -360,8 +359,7 @@ pred_peninsula_non_richness <- transform(pred_peninsula_non_richness,
 pred_peninsula_non_richness$corrected <- "not_corrected"
 
 ##changing names for binding
-pred_peninsula_non_richness <- pred_peninsula_non_richness %>% rename(mean_age = age,
-                                                            lambda_mean = lambda_a)
+pred_peninsula_non_richness <- pred_peninsula_non_richness %>% rename(mean_age = age)
 
 
 ############low extinction
@@ -372,7 +370,7 @@ pred_peninsula_low_richness <- data.frame(richness = seq(min(peninsula_traits_lo
                                                     length.out = 100),
                                      mean_age = mean(peninsula_traits_low$mean_age,
                                                      na.rm = TRUE),
-                                     lambda_mean = mean(peninsula_traits_low$lambda_mean,
+                                     mean_lambda = mean(peninsula_traits_low$mean_lambda,
                                                         na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -397,7 +395,7 @@ pred_peninsula_int_richness <- data.frame(richness = seq(min(peninsula_traits_in
                                                     length.out = 100),
                                     mean_age = mean(peninsula_traits_int$mean_age,
                                                      na.rm = TRUE),
-                                     lambda_mean = mean(peninsula_traits_int$lambda_mean,
+                                     mean_lambda = mean(peninsula_traits_int$mean_lambda,
                                                         na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -422,7 +420,7 @@ pred_peninsula_high_richness <- data.frame(richness = seq(min(peninsula_traits_h
                                                      length.out = 100),
                                       mean_age = mean(peninsula_traits_high$mean_age,
                                                       na.rm = TRUE),
-                                      lambda_mean = mean(peninsula_traits_high$lambda_mean,
+                                      mean_lambda = mean(peninsula_traits_high$mean_lambda,
                                                          na.rm = TRUE))
 
 # Get predicted values with confidence intervals
@@ -469,7 +467,7 @@ write_csv(pred_pen_richness,
 # Predicted response vs predictor plot
 ########plot coeficients###############
 
-png("text/Figures/Figure_pen_richness.png", 
+png("Figures/Figure_pen_richness.png", 
     width = 30, height = 12,
     units = "cm", pointsize = 8, res = 300)
 
@@ -482,13 +480,14 @@ pen_richness <- ggplot(pred_pen_richness, aes(x = richness, y = predicted)) +
   
   mynamestheme
 
+pen_richness
 dev.off()
 
 
 ## merging the three figures of Iberian Peninsula
 
 ##Plotting
-png("text/Figures/Figure_2.png", 
+png("Figures/Figure_3.png", 
     width = 30, height = 30,
     units = "cm", pointsize = 8, res = 300)
 
@@ -523,10 +522,10 @@ coefs_anda_non <- coefs_anda_non[-1,]
 ##ordering
 coefs_anda_non$Term <- factor(coefs_anda_non$Term, levels = c("richness",
                                                               "age",
-                                                              "lambda_a"),
+                                                              "mean_lambda"),
                               labels = c("richness",
                                          "mean_age",
-                                         "lambda_mean"),
+                                         "mean_lambda"),
                               ordered = TRUE)
 ##factor
 coefs_anda_non$corrected <- "Not corrected"
@@ -553,7 +552,7 @@ coefs_anda_low <- coefs_anda_low[-1,]
 ##ordering
 coefs_anda_low$Term <- factor(coefs_anda_low$Term, levels = c("richness",
                                                               "mean_age",
-                                                              "lambda_mean"),
+                                                              "mean_lambda"),
                               ordered = TRUE)
 
 
@@ -582,7 +581,7 @@ coefs_anda_int <- coefs_anda_int[-1,]
 ##ordering
 coefs_anda_int$Term <- factor(coefs_anda_int$Term, levels = c("richness",
                                                               "mean_age",
-                                                              "lambda_mean"),
+                                                              "mean_lambda"),
                               ordered = TRUE)
 
 #factor
@@ -609,7 +608,7 @@ coefs_anda_high <- coefs_anda_high[-1,]
 ##ordering
 coefs_anda_high$Term <- factor(coefs_anda_high$Term, levels = c("richness",
                                                                 "mean_age",
-                                                                "lambda_mean"),
+                                                                "mean_lambda"),
                                ordered = TRUE)
 
 ##factor
@@ -631,7 +630,7 @@ coefs_anda_total$corrected <- factor(coefs_anda_total$corrected,
 
 
 ########plot coeficients############### 
-png("Figures/Figure_3.png", 
+png("Figures/Figure_4.png", 
     width = 30, height = 12,
     units = "cm", pointsize = 8, res = 300)
 
@@ -643,7 +642,7 @@ ggplot(coefs_anda_total, aes(x = Term, y = Estimate)) +
        title = "Eastern Andalusia") +
   theme_bw() +
   
-  ylim(-0.3, 0.3)+
+  #ylim(-0.3, 0.3)+
   scale_x_discrete(labels = c("Richness","Genus age", expression(~lambda)))+
   facet_wrap(~ corrected, nrow = 1)+
   mynamestheme
