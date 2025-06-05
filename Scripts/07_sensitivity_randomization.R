@@ -96,7 +96,146 @@ for (i in 1:n_replicates) {
       drop_na(ext_fraction)
 }
 
-####### fitting the glm
+###########phylogenetic signal ##############
+
+# Load the genus tree once
+peninsula_genus_phylo <- read.tree("Results/peninsula_genus_phylo.tre")
+
+# Create a vector of tip labels once
+tip_labels <- peninsula_genus_phylo$tip.label
+
+# Initialize result lists
+K_pen_list <- vector("list", length = 100)
+lambda_pen_list <- vector("list", length = 100)
+
+# Start loop
+for (i in seq_len(100)) {
+  message("Processing replicate ", i)
+  
+  df <- sensitivity_list[[i]] %>%
+    dplyr::filter(ext_fraction == "low_ex") 
+  
+  df <- df[match(tip_labels, df$Genus), ]
+  threatened_vector <- setNames(df$proportion_threatened, df$Genus)
+  
+  # Skip if NA or length mismatch
+  if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
+    K_pen_list[[i]] <- NA
+    lambda_pen_list[[i]] <- NA
+    next
+  }
+  
+  # Try-catch in case phylosig fails
+  K_pen_list[[i]] <- tryCatch(
+    phylosig(peninsula_genus_phylo, 
+             threatened_vector, nsim = 100, test = TRUE, method = "K"),
+    error = function(e) NA
+  )
+  
+  lambda_pen_list[[i]] <- tryCatch(
+    phylosig(peninsula_genus_phylo, 
+             threatened_vector, nsim = 100, test = TRUE, method = "lambda"),
+    error = function(e) NA
+  )
+}
+
+##converting to df
+
+#Blomberg
+K_pen_df <- purrr::map_dfr(K_pen_list, function(x) {
+  if (is.list(x)) {
+    tibble(K = x$K, P = x$P)
+  } else {
+    tibble(K = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(K_pen_df,
+          file = "Data/Processed/Sensitivity/Randomizations/K_pen_df.csv")
+
+#lambda
+lambda_pen_df <- purrr::map_dfr(lambda_pen_list, function(x) {
+  if (is.list(x)) {
+    tibble(lambda = x$lambda, logL = x$logL, P = x$P)
+  } else {
+    tibble(lambda = NA, logL = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(lambda_pen_df,
+          file = "Data/Processed/Sensitivity/Randomizations/lambda_pen_df.csv")
+
+
+###merging and plotting########
+phylo_signal_pen <- dplyr::left_join(K_pen_df, lambda_pen_df,
+                                     by = "replicate") %>% 
+                   rename(p_value_K = P.x,
+                          p_value_lambda = P.y)
+
+#saving 
+write_csv(phylo_signal_pen, "Results/phylo_signal_peninsula_random.csv")
+
+#pivoting for plotting
+
+long_pen_signal <- phylo_signal_pen %>%
+  select(K, lambda) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value") %>%
+  mutate(Metric = recode(Metric,
+                         K = "Blomberg's K",
+                         lambda = "Pagel's λ"))
+
+# Define reference values from main analysis (DD and NE as Not Threatened)
+ref_main <- data.frame(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  ref = c(0.02, 0.44)
+)
+
+
+# Plot
+# Create axis limit values
+xlims <- tibble(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  xmin = c(0, 0),
+  xmax = c(0.05, 1)
+)
+
+# Merge with main data for facet-specific limits
+long_pen_signal <- long_pen_signal %>%
+  left_join(xlims, by = "Metric")
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/Phylo_signal_Peninsular.png", 
+    width = 20, height = 12,
+    units = "cm", pointsize = 8, res = 300)
+
+ggplot(long_pen_signal, aes(x = Value)) +
+  geom_histogram(fill = "skyblue", alpha = 0.6, bins = 30) +
+  facet_wrap(~Metric, scales = "free") +
+  
+  # Add invisible points to enforce per-facet x-axis limits
+  geom_blank(aes(x = xmin)) +
+  geom_blank(aes(x = xmax)) +
+  
+  # Main analysis vertical line (red, dashed)
+  geom_vline(data = ref_main, aes(xintercept = ref), 
+             linetype = "dashed", size = 1.2, color = "red") +
+  
+  
+  labs(x = NULL, y = NULL, title = "Phylogenetic Signal across replicates\nin Peninsular Spain") +
+  theme_minimal(base_size = 14) +
+  mynamestheme+
+  theme(
+    strip.text = element_text(size = 14),
+    plot.title = element_text(size = 15)
+  ) 
+
+dev.off()
+
+
+####### fitting the glm ####################
 
 # List of extinction scenarios
 ext_scenarios <- c("low_ex", "int_ex", "high_ex")
@@ -180,6 +319,8 @@ glm_summary_stats <- glm_summary_df %>%
 
 ##saving
 write_csv(glm_summary_stats, file = "Results/glm_sensitivity_Peninsula.csv")
+
+write.xlsx(glm_summary_stats, file = "Results/glm_sensitivity_Peninsula_excel.xlsx" )
 
 
 ####plotting
@@ -303,7 +444,132 @@ for (i in 1:n_replicates) {
     drop_na(ext_fraction)
 }
 
-####### fitting the glm
+#########phylogenetic signal ###################
+
+##calling genus tree
+andalucia_genus_phylo <- read.tree("Results/andalucia_genus_phylo.tre")
+
+# Create a vector of tip labels once
+tip_labels <- andalucia_genus_phylo$tip.label
+
+# Initialize result lists
+K_and_list <- vector("list", length = 100)
+lambda_and_list <- vector("list", length = 100)
+
+# Start loop
+for (i in seq_len(100)) {
+  message("Processing replicate ", i)
+  
+  df <- sensitivity_list[[i]] %>%
+    dplyr::filter(ext_fraction == "low_ex") 
+  
+  df <- df[match(tip_labels, df$Genus), ]
+  threatened_vector <- setNames(df$proportion_threatened, df$Genus)
+  
+  # Skip if NA or length mismatch
+  if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
+    K_pen_list[[i]] <- NA
+    lambda_pen_list[[i]] <- NA
+    next
+  }
+  
+  # Try-catch in case phylosig fails
+  K_and_list[[i]] <- tryCatch(
+    phylosig(andalucia_genus_phylo, 
+             threatened_vector, nsim = 100, test = TRUE, method = "K"),
+    error = function(e) NA
+  )
+  
+  lambda_and_list[[i]] <- tryCatch(
+    phylosig(andalucia_genus_phylo, 
+             threatened_vector, nsim = 100, test = TRUE, method = "lambda"),
+    error = function(e) NA
+  )
+}
+
+##converting to df
+
+#Blomberg
+K_and_df <- purrr::map_dfr(K_and_list, function(x) {
+  if (is.list(x)) {
+    tibble(K = x$K, P = x$P)
+  } else {
+    tibble(K = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(K_and_df,
+          file = "Data/Processed/Sensitivity/Randomizations/K_and_df.csv")
+
+#lambda
+lambda_and_df <- purrr::map_dfr(lambda_and_list, function(x) {
+  if (is.list(x)) {
+    tibble(lambda = x$lambda, logL = x$logL, P = x$P)
+  } else {
+    tibble(lambda = NA, logL = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(lambda_and_df,
+          file = "Data/Processed/Sensitivity/Randomizations/lambda_and_df.csv")
+
+
+###merging and plotting########
+phylo_signal_and <- dplyr::left_join(K_and_df, lambda_and_df,
+                                     by = "replicate") %>% 
+  rename(p_value_K = P.x,
+         p_value_lambda = P.y)
+
+#saving 
+write_csv(phylo_signal_and, "Results/phylo_signal_andalucia_random.csv")
+
+#pivoting for plotting
+
+long_and_signal <- phylo_signal_and %>%
+  select(K, lambda) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value") %>%
+  mutate(Metric = recode(Metric,
+                         K = "Blomberg's K",
+                         lambda = "Pagel's λ"))
+
+# Define reference values from main analysis (DD and NE as Not Threatened)
+ref_main <- data.frame(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  ref = c(0.015, 7.331374e-05)
+)
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/Phylo_signal_Andalucia.png", 
+    width = 20, height = 12,
+    units = "cm", pointsize = 8, res = 300)
+
+ggplot(long_and_signal, aes(x = Value)) +
+  geom_histogram(fill = "skyblue", alpha = 0.6, bins = 30) +
+  facet_wrap(~Metric, scales = "free") +
+  
+  
+  # Main analysis vertical line (red, dashed)
+  geom_vline(data = ref_main, aes(xintercept = ref), 
+             linetype = "dashed", size = 1.2, color = "red") +
+  
+  
+  labs(x = NULL, y = NULL, 
+       title = "Phylogenetic Signal across replicates\nin Eastern Andalusia") +
+  theme_minimal(base_size = 14) +
+  mynamestheme+
+  theme(
+    strip.text = element_text(size = 14),
+    plot.title = element_text(size = 15)
+  ) +
+  scale_x_continuous(labels = scales::label_number(accuracy = 0.0001))
+
+
+dev.off()
+
+###### fitting the glm ############
 
 # List of extinction scenarios
 ext_scenarios <- c("low_ex", "int_ex", "high_ex")
@@ -388,6 +654,9 @@ glm_summary_stats_andalucia <- glm_summary_df_andalucia %>%
 ##saving
 write_csv(glm_summary_stats_andalucia, 
           file = "Results/glm_sensitivity_andalucia.csv")
+
+write.xlsx(glm_summary_stats_andalucia, 
+           file = "Results/glm_sensitivity_andalucia_excel.xlsx")
 
 
 ####plotting
