@@ -174,8 +174,31 @@ phylo_signal_pen <- dplyr::left_join(K_pen_df, lambda_pen_df,
                    rename(p_value_K = P.x,
                           p_value_lambda = P.y)
 
+
 #saving 
 write_csv(phylo_signal_pen, "Results/phylo_signal_peninsula_random.csv")
+
+
+##summarising
+phylo_signal_pen_summary <- phylo_signal_pen %>%
+  summarise(
+    lambda_mean = mean(lambda),
+    lambda_sd = sd(lambda),
+    lambda_p_mean = mean(p_value_lambda),
+    K_mean = mean(K),
+    K_sd = sd(K),
+    K_p_mean = mean(p_value_K)
+  ) %>%
+  tibble::tibble(
+    parameter = c("lambda", "K"),
+    mean = c(.$lambda_mean, .$K_mean),
+    sd = c(.$lambda_sd, .$K_sd),
+    p_value_mean = c(.$lambda_p_mean, .$K_p_mean)
+  )
+
+phylo_signal_pen_summary <- phylo_signal_pen_summary[,-c(1:6)]
+
+phylo_signal_pen_summary$region <- "Peninsula"
 
 #pivoting for plotting
 
@@ -524,6 +547,37 @@ phylo_signal_and <- dplyr::left_join(K_and_df, lambda_and_df,
 
 #saving 
 write_csv(phylo_signal_and, "Results/phylo_signal_andalucia_random.csv")
+
+
+##summarising
+phylo_signal_and_summary <- phylo_signal_and %>%
+  summarise(
+    lambda_mean = mean(lambda),
+    lambda_sd = sd(lambda),
+    lambda_p_mean = mean(p_value_lambda),
+    K_mean = mean(K),
+    K_sd = sd(K),
+    K_p_mean = mean(p_value_K)
+  ) %>%
+  tibble::tibble(
+    parameter = c("lambda", "K"),
+    mean = c(.$lambda_mean, .$K_mean),
+    sd = c(.$lambda_sd, .$K_sd),
+    p_value_mean = c(.$lambda_p_mean, .$K_p_mean)
+  )
+
+#removing extra columns
+phylo_signal_and_summary <- phylo_signal_and_summary[,-c(1:6)]
+
+#assigning regions
+phylo_signal_and_summary$region <- "Andalusia"
+
+##merging Phylo signal regions
+phylo_signal_random_summary <- rbind(phylo_signal_pen_summary,
+                                     phylo_signal_and_summary)
+
+write_xlsx(phylo_signal_random_summary,
+           path = "Results/phylo_signal_random_summary.xlsx")
 
 #pivoting for plotting
 
