@@ -20,7 +20,6 @@ peninsula <- peninsula %>%
   mutate(
     Status = factor(
       Status,
-      labels = c(not_threatened, threatened),
       ordered = TRUE
     ),
     threat_category = case_when(
@@ -51,7 +50,6 @@ andalucia <- andalucia %>%
   mutate(
     Status = factor(
       Status,
-      labels = c(not_threatened[-2], threatened[-(5:6)]),
       ordered = TRUE
     ),
     threat_category = case_when(
