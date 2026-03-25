@@ -1,65 +1,39 @@
-##for installing packages
+##########ClaDS for the plant phylogeny (collapsed to genus level) ############
+
+###########################################################
+###### we ran this Julia code in USP server,  #############
+######        which operates under Linux       ############
+##########################################################
+
+#open an independent julia session
+tmux new -s julia_session
+
+#open Julia
+julia
 using Pkg
+Pkg.activate("~/.julia/environments/v1.11")
+Pkg.instantiate()
 
-##for paralleling
-using Distributed
+using PANDA
+using JLD2
+using PANDA.ClaDS
 
-addprocs(2)
+# Single tree file
+tree_file = "plant_genus_phylo.tre"
 
-##for sending all the packages and dependencies to workers
-@everywhere using Pkg
-@everywhere Pkg.activate("~/.julia/environments/v1.11")
-@everywhere Pkg.instantiate()
-@everywhere using PANDA
-@everywhere using JLD2
-
-# List of tree files of amphibians
-tree_files = ["niche_position_age/results/data/metadata/extinction_dynamics$(i).tre" for i in [1:2]]
-
-
-# Load necessary packages on all workers
-@everywhere using JLD2, PANDA.ClaDS
-
-# Function to process a single tree
-@everywhere function process_tree(file)
+# Function to process the tree
+function process_tree(file)
     tree = PANDA.ClaDS.load_tree(file)
     result = PANDA.ClaDS.infer_ClaDS(tree, 100)
     
     filename = split(file, "/")[end]  # Extract file name
-    output_file = "spe_rates/extinction_dynamics/claDS_results_$filename.jld2"
+    output_file = "claDS_results_$filename.jld2"
     
-    JLD2.save(output_file, "result", result)  # Save results
-    return output_file  # Return saved filename
+    JLD2.save(output_file, "result", result)
+    
+    return output_file
 end
 
-# Step 2: Run in parallel using `pmap` (One tree per worker)
-results = pmap(process_tree, tree_files)
+# Run for a single tree
+result_file = process_tree(tree_file)
 
-
-##when the CladsOutput are generated you should convert them to .RData format for further evaluation
-
-#calling packages needed
-using JLD2, PANDA
-
-##naming the JLD2 (CladsOutputs) files
-files = filter(x -> endswith(x, ".jld2"), readdir("spe_rates", join=true))
-
-
-##naming the output directory
-output_dir = "Extinciton_dyn_iberic_RData"
-mkpath(output_dir)  # Ensure output directory exists
-
-## loop for loading files, convert them to RData, and save them 
-for file in files
-    data = load(file)  # Load the JLD2 file
-    
-    if haskey(data, "result") && isa(data["result"], CladsOutput)
-        clads_result = data["result"]  # Extract the correct object
-        filename = splitext(basename(file))[1] * ".RData"  # Change extension
-        output_path = joinpath(output_dir, filename)
-        
-        save_ClaDS_in_R(clads_result, output_path)  # Save as RData
-    else
-        println("Skipping file: ", file, " (CladsOutput not found)")
-    end
-end
