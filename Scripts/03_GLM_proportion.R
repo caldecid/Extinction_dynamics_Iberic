@@ -5,42 +5,31 @@ library(tidyverse)
 library(ggcorrplot)
 library(DescTools)
 
+##loading ClaDS from my desktop (due to memory it was not uploaded to github)
+load("Data/Processed/claDS_plant_phylo.RData") 
 
+##ClaDS output
+plant_genus_rates <- data.frame(Species = CladsOutput[["tree"]][["tip.label"]],
+                        rates = CladsOutput[["lambdatip_map"]]) %>% 
+                      rename(Genus = Species)
+
+#saving
+write_csv(plant_genus_rates, file = "Data/Processed/plant_genus_rates.csv")
 
 ###############################Peninsula#######################################
 
-##calling IUCN data (not selecting lambdas calculated by the anterior method)
-peninsula_iucn <- read_csv("Data/Processed/peninsula_ages_total.csv") %>% 
-                                                  select(-c(lambda_a, lambda_mean))
+##calling peninsula data
+peninsula_ages_proportion <- read_csv("Data/Processed/peninsula_ages_proportion.csv")
 
-##loading ClaDS from my desktop (due to memory it was not uploaded to github)
-load("Desktop/claDS_results_peninsula_phy.tre.RData") ##it is loaded as CladsOutput
-
-##ClaDS output
-pen_rates <- data.frame(Species = CladsOutput[["tree"]][["tip.label"]],
-                        rates = CladsOutput[["lambdatip_map"]]) 
-
-
-###Saving 
-write_csv(pen_rates, file = "Data/Processed/peninsula_ClaDS_rates.csv")
-
-##averaging to genus rates
-pen_genus_rates <- pen_rates %>%
-  separate(Species, into = c("Genus", "epithet"), sep = "_") %>%
-  group_by(Genus) %>%
-  summarise(
-    mean_lambda = mean(rates, na.rm = TRUE),
-    sd_lambda = sd(rates, na.rm = TRUE),
-    n_species = n()
-  )
-
-
-pen_merged <- peninsula_iucn %>% left_join(pen_genus_rates, by = "Genus") %>% 
-              select(-c(lambda_a, lambda_mean, n_species))
-
+##merging ages and diversification rates
+peninsula_total <- peninsula_ages_proportion %>%
+                          left_join(plant_genus_rates, by = "Genus") 
 
 ##saving 
-write_csv(pen_merged, file = "Data/Processed/peninsula_merged_iucn_clads.csv")
+write_csv(peninsula_total, 
+                       file = "Data/Processed/peninsula_merged_iucn_clads.csv")
+
+
 
 ##excluding corrected age and diversification rate
 peninsula_traits_non <- pen_merged %>% filter(ext_fraction == "low_ex") %>% 
@@ -188,36 +177,19 @@ pseudo_R2_pen_high <- PseudoR2(model_pen_high, which = "all")
 
 
 
-######################ANDALUCIA##################################################
+###############################andalucia#######################################
 
-##calling data
-andalucia_iucn <- read_csv("Data/Processed/andalucia_ages_total.csv")
+##calling andalucia data
+andalucia_ages_proportion <- read_csv("Data/Processed/andalucia_ages_proportion.csv")
 
-##loading ClaDS (not included in the github repo due to memory limitation) 
-load("Desktop/claDS_results_andalucia_phy.tre.RData") ##it is loaded as CladsOutput
+##merging ages and diversification rates
+andalucia_total <- andalucia_ages_proportion %>%
+                left_join(plant_genus_rates, by = "Genus") 
 
-##ClaDS output
-and_rates <- data.frame(Species = CladsOutput[["tree"]][["tip.label"]],
-                        rates = CladsOutput[["lambdatip_map"]]) 
-#saving
-write_csv(and_rates, "Data/Processed/andalucia_ClaDS_rates.csv")
+##saving 
+write_csv(andalucia_total, 
+          file = "Data/Processed/andalucia_merged_iucn_clads.csv")
 
-#averaging rates per genus
-and_genus_rates <- and_rates %>%
-  separate(Species, into = c("Genus", "epithet"), sep = "_") %>%
-  group_by(Genus) %>%
-  summarise(
-    mean_lambda = mean(rates, na.rm = TRUE),
-    sd_lambda = sd(rates, na.rm = TRUE),
-    n_species = n()
-  )
-
-# merging with andalucia iucn
-and_merged <- andalucia_iucn %>% left_join(and_genus_rates, by = "Genus") %>% 
-            select(-c(lambda_a, lambda_mean, n_species))
-
-#saving
-write_csv(and_merged, file = "Data/Processed/andalucia_merged_iucn_clads.csv")
 
 
 ##only the predictors (not corrected age)

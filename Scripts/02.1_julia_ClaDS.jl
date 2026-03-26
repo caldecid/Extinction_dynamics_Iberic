@@ -37,3 +37,23 @@ end
 # Run for a single tree
 result_file = process_tree(tree_file)
 
+####### after running ClaDs ########
+
+#transforming jld2 file into RData
+
+# Input file
+file = "claDS_results_plant_genus_phylo.tre.jld2"
+
+# Load the JLD2 file
+data = load(file)
+
+#assigning only the result part of the data 
+clads_result = data["result"]
+
+# Save directly in the workspace
+save_ClaDS_in_R(clads_result, "clads_plant_phylo.RData")
+
+
+
+
+
