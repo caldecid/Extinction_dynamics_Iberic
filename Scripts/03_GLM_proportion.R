@@ -4,6 +4,7 @@
 library(tidyverse)
 library(ggcorrplot)
 library(DescTools)
+library(glmmTMB) #for using betabinomial model for overdispersion
 
 ##loading ClaDS from my desktop (due to memory it was not uploaded to github)
 load("Data/Processed/claDS_plant_phylo.RData") 
@@ -29,152 +30,213 @@ peninsula_total <- peninsula_ages_proportion %>%
 write_csv(peninsula_total, 
                        file = "Data/Processed/peninsula_merged_iucn_clads.csv")
 
-
-
-##excluding corrected age and diversification rate
-peninsula_traits_non <- pen_merged %>% filter(ext_fraction == "low_ex") %>% 
-                                      select(c("age", "richness", "ev.dist",
-                                          "mean_lambda",
-                                          "proportion_threatened"))
-
-##evaluating correlation in the predictors
-
-# Selecting the predictor columns
-predictor_data <- peninsula_traits_non[, c("richness", "ev.dist", "mean_lambda",
-                                          "age")]
-
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
-
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_pen_non.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
-
-ggcorrplot(cor_matrix, lab = TRUE) ##excluding evo distinct due to correlation with age
-
-dev.off()
-##fitting GLM
-model_pen_non <- glm(proportion_threatened ~ richness + age + mean_lambda,
-                     data = peninsula_traits_non,
-                     family = quasibinomial())
-
-summary(model_pen_non)
-
-##pseudo R2
-pseudo_R2_pen_non <- PseudoR2(model_pen_non, which = "all")
-
-
-# low extinction ----------------------------------------------------------
-
-##only the predictors (corrected age)
-peninsula_traits_low <- pen_merged %>% filter(ext_fraction == "low_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
-
-
-# Selecting the predictor columns
-predictor_data <-peninsula_traits_low[, c("richness", "ev.dist", "mean_lambda",
-                                          "mean_age")]
-
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
-
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_pen_low.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
-
-ggcorrplot(cor_matrix, lab = TRUE) ##excluding evo distinct due to correlation with age
-
-
-dev.off()
-##fitting GLM
-model_pen_low <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                     data = peninsula_traits_low,
-                     family = quasibinomial())
-
-summary(model_pen_low)
-
-##pseudo R2
-pseudo_R2_pen_low <- PseudoR2(model_pen_low, which = "all")
+#reading
+peninsula_total <- read_csv("Data/Processed/peninsula_merged_iucn_clads.csv")
 
 
 
-# intermediate extinction -------------------------------------------------
+# Low extinction ----------------------------------------------------------
 
-##only the predictors (corrected age)
-peninsula_traits_int <- pen_merged %>% filter(ext_fraction == "int_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
+peninsula_low <- peninsula_total %>% filter(ext_fraction == "low_ex")
 
-# Selecting the predictor columns
-predictor_data <-peninsula_traits_int[, c("richness", "ev.dist", "mean_lambda",
-                                          "mean_age")]
+##null model 
+model_pen_low_null <- glmmTMB(cbind(threatened_species,
+                                    richness - threatened_species) ~ 1,
+                              family = betabinomial(),
+                              data = peninsula_low)
 
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
+summary(model_pen_low_null)
 
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_pen_int.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
 
-ggcorrplot(cor_matrix, lab = TRUE) ##excluding evo distinct due to correlation with age
+#### complete model
+model_pen_low_1 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age + rates,
+                           family = betabinomial(),
+                           data = peninsula_low)
+summary(model_pen_low_1)
 
-dev.off()
+#r squared
+# McFadden R2
+R2_pen_low_1 <- 1 - (logLik(model_pen_low_1) / logLik(model_pen_low_null))
+R2_pen_low_1 ## 0.14% no variation explained
 
-##fitting GLM
-model_pen_int <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                     data = peninsula_traits_int,
-                     family = quasibinomial())
 
-summary(model_pen_int)
+### model with rates only 
+model_pen_low_2 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ rates,
+                           family = betabinomial(),
+                           data = peninsula_low)
+summary(model_pen_low_2)
 
-##pseudo R2
-pseudo_R2_pen_int <- PseudoR2(model_pen_int, which = "all")
+#r squared
+R2_pen_low_2 <- 1 - (logLik(model_pen_low_2) / logLik(model_pen_low_null))
+R2_pen_low_2 
 
+### model with age only 
+model_pen_low_3 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age,
+                           family = betabinomial(),
+                           data = peninsula_low)
+summary(model_pen_low_3)
+
+#r squared
+R2_pen_low_3 <- 1 - (logLik(model_pen_low_3) / logLik(model_pen_low_null))
+R2_pen_low_3 
+
+
+## alternative model using richess as predictor (artifact)
+model_pen_low_alt_1 <- glmmTMB(cbind(threatened_species,
+              richness - threatened_species) ~ richness + mean_age + rates,
+        family = betabinomial(),
+        data = peninsula_low)
+
+summary(model_pen_low_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
+
+
+### alternative model using richness as offset to remove its effect
+model_pen_low_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = peninsula_low
+)
+
+summary(model_pen_low_alt_2)
+
+
+# intermediate extinction ----------------------------------------------------
+
+peninsula_int <- peninsula_total %>% filter(ext_fraction == "int_ex")
+
+##null model 
+model_pen_int_null <- glmmTMB(cbind(threatened_species,
+                                    richness - threatened_species) ~ 1,
+                              family = betabinomial(),
+                              data = peninsula_int)
+summary(model_pen_int_null) 
+
+
+#### complete model
+model_pen_int_1 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age + rates,
+                           family = betabinomial(),
+                           data = peninsula_int)
+summary(model_pen_int_1)
+
+#r squared
+R2_pen_int_1 <- 1 - (logLik(model_pen_int_1) / logLik(model_pen_int_null))
+R2_pen_int_1 
+
+### model with rates only 
+model_pen_int_2 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ rates,
+                           family = betabinomial(),
+                           data = peninsula_int)
+summary(model_pen_int_2)
+
+#r squared
+R2_pen_int_2 <- 1 - (logLik(model_pen_int_2) / logLik(model_pen_int_null))
+R2_pen_int_2 
+
+
+### model with age only 
+model_pen_int_3 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age,
+                           family = betabinomial(),
+                           data = peninsula_int)
+summary(model_pen_int_3)
+
+#r squared
+R2_pen_int_3 <- 1 - (logLik(model_pen_int_3) / logLik(model_pen_int_null))
+R2_pen_int_3 
+
+
+## alternative model using richess as predictor (artifact)
+model_pen_int_alt_1 <- glmmTMB(cbind(threatened_species,
+                       richness - threatened_species) ~ richness + mean_age + rates,
+                               family = betabinomial(),
+                               data = peninsula_int)
+
+summary(model_pen_int_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
+
+
+### alternative model using richness as offset to remove its effect
+model_pen_int_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = peninsula_int
+)
+
+summary(model_pen_int_alt_2)
 
 
 # high extinction ---------------------------------------------------------
 
+peninsula_high <- peninsula_total %>% filter(ext_fraction == "high_ex")
 
-##only the predictors (corrected age)
-peninsula_traits_high <- pen_merged %>% filter(ext_fraction == "high_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
+##null model 
+model_pen_high_null <- glmmTMB(cbind(threatened_species,
+                                     richness - threatened_species) ~ 1,
+                               family = betabinomial(),
+                               data = peninsula_high)
+summary(model_pen_high_null) 
 
-# Selecting the predictor columns
-predictor_data <-peninsula_traits_high[, c("richness", "ev.dist", "mean_lambda",
-                                          "mean_age")]
 
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
+#### complete model
+model_pen_high_1 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age + rates,
+                           family = betabinomial(),
+                           data = peninsula_high)
+summary(model_pen_high_1)
 
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_pen_high.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
+#r squared
+R2_pen_high_1 <- 1 - (logLik(model_pen_high_1) / logLik(model_pen_high_null))
+R2_pen_high_1
 
-ggcorrplot(cor_matrix, lab = TRUE) ##not excluding evo.dist due to the rule of thumb
-#######the question here is whether I include the evo.dist or not. 
 
-dev.off()
+### model with rates only 
+model_pen_high_2 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ rates,
+                           family = betabinomial(),
+                           data = peninsula_high)
+summary(model_pen_high_2)
 
-##fitting GLM
-model_pen_high <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                     data = peninsula_traits_high,
-                     family = quasibinomial())
+R2_pen_high_2 <- 1 - (logLik(model_pen_high_2) / logLik(model_pen_high_null))
+R2_pen_high_2
 
-summary(model_pen_high)
+### model with age only 
+model_pen_high_3 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age,
+                           family = betabinomial(),
+                           data = peninsula_high)
+summary(model_pen_high_3) 
 
-##pseudo R2
-pseudo_R2_pen_high <- PseudoR2(model_pen_high, which = "all")
+#r squared
+R2_pen_high_3 <- 1 - (logLik(model_pen_high_3) / logLik(model_pen_high_null))
+R2_pen_high_3
 
+## alternative model using richess as predictor (artifact)
+model_pen_high_alt_1 <- glmmTMB(cbind(threatened_species,
+                                     richness - threatened_species) ~ richness + mean_age + rates,
+                               family = betabinomial(),
+                               data = peninsula_high)
+
+summary(model_pen_high_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
+
+
+### alternative model using richness as offset to remove its effect
+model_pen_high_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = peninsula_high
+)
+
+summary(model_pen_high_alt_2)
 
 
 ###############################andalucia#######################################
@@ -190,155 +252,228 @@ andalucia_total <- andalucia_ages_proportion %>%
 write_csv(andalucia_total, 
           file = "Data/Processed/andalucia_merged_iucn_clads.csv")
 
-
-
-##only the predictors (not corrected age)
-andalucia_traits_non <- and_merged %>% filter(ext_fraction == "low_ex") %>% 
-  select(c("age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
-
-# Selecting the predictor columns
-predictor_data <- andalucia_traits_non[, c("richness", "ev.dist", "mean_lambda",
-                                           "age")]
-
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
-
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_andalucia_non.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
-
-
-ggcorrplot(cor_matrix, lab = TRUE) ## excluding ev.dist due to correlation with age
+##reading
+andalucia_total <- read_csv("Data/Processed/andalucia_merged_iucn_clads.csv")
 
 
 
+# Low extinction ----------------------------------------------------------
+andalucia_low <- andalucia_total %>% filter(ext_fraction == "low_ex")
 
-dev.off()
-
-##fitting GLM
-model_anda_non <- glm(proportion_threatened ~ richness + age + mean_lambda,
-                      data = andalucia_traits_non,
-                      family = quasibinomial())
-
-summary(model_anda_non) ##no significant terms
-
-##pseudo R2
-pseudo_R2_anda_non <- PseudoR2(model_anda_non, which = "all")
+##null model 
+model_andalucia_low_null <- glmmTMB(cbind(threatened_species,
+                                          richness - threatened_species) ~ 1,
+                                    family = betabinomial(),
+                                    data = andalucia_low)
+summary(model_andalucia_low_null) 
 
 
+#### complete model
+model_andalucia_low_1 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age + rates,
+                           family = betabinomial(),
+                           data = andalucia_low)
+summary(model_andalucia_low_1)
 
-# low extinction ----------------------------------------------------------
+#r squared
+R2_andalucia_low_1 <- 1 - (logLik(model_andalucia_low_1) / logLik(model_andalucia_low_null))
+R2_andalucia_low_1
 
-##only the predictors (corrected age)
-andalucia_traits_low <- and_merged %>% filter(ext_fraction == "low_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
+### model with rates only 
+model_andalucia_low_2 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ rates,
+                           family = betabinomial(),
+                           data = andalucia_low)
 
-# Selecting the predictor columns
-predictor_data <- andalucia_traits_low[, c("richness", "ev.dist", "mean_lambda",
-                                           "mean_age")]
+summary(model_andalucia_low_2)
 
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
+#r squared
+R2_andalucia_low_2 <- 1 - (logLik(model_andalucia_low_2) / logLik(model_andalucia_low_null))
+R2_andalucia_low_2
 
-# Visualize the correlation matrix with a heatmap
+### model with age only 
+model_andalucia_low_3 <- glmmTMB(cbind(threatened_species,
+                                 richness - threatened_species) ~ mean_age,
+                           family = betabinomial(),
+                           data = andalucia_low)
 
-png("Figures/Supplementary/Figure_cor_andalucia_low.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
+summary(model_andalucia_low_3) 
 
-ggcorrplot(cor_matrix, lab = TRUE) ## excluding ev.dist due to correlation with age
-
-dev.off()
-##fitting GLM
-model_anda_low <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                      data = andalucia_traits_low,
-                      family = quasibinomial())
-
-summary(model_anda_low) ##no significant terms
-
-##pseudo R2
-pseudo_R2_anda_low <- PseudoR2(model_anda_low, which = "all")
-
-
-
-# intermediate extinction -------------------------------------------------
-
-#filtering and selecting
-andalucia_traits_int <- and_merged %>% filter(ext_fraction == "int_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
-
-# Selecting the predictor columns
-predictor_data <- andalucia_traits_int[, c("richness", "ev.dist", "mean_lambda",
-                                           "mean_age")]
-
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
-
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_andalucia_int.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
-
-ggcorrplot(cor_matrix, lab = TRUE) ## excluding ev.dist due to correlation with age
-
-dev.off()
-##fitting GLM
-model_anda_int <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                      data = andalucia_traits_int,
-                      family = quasibinomial())
-
-summary(model_anda_int) ##no significant terms
-
-##pseudo R2
-pseudo_R2_anda_int <- PseudoR2(model_anda_int, which = "all")
+#r squared
+R2_andalucia_low_3 <- 1 - (logLik(model_andalucia_low_3) / logLik(model_andalucia_low_null))
+R2_andalucia_low_3
 
 
-# high extinction ---------------------------------------------------------
+## alternative model using richess as predictor (artifact)
+model_andalucia_low_alt_1 <- glmmTMB(cbind(threatened_species,
+                                     richness - threatened_species) ~ richness + mean_age + rates,
+                               family = betabinomial(),
+                               data = andalucia_low)
 
-##filtering and selecting
-andalucia_traits_high <- and_merged %>% filter(ext_fraction == "high_ex") %>% 
-  select(c("mean_age", "richness", "ev.dist",
-           "mean_lambda", "proportion_threatened"))
-# Selecting the predictor columns
-predictor_data <- andalucia_traits_high[, c("richness", "ev.dist", "mean_lambda",
-                                           "mean_age")]
-
-
-# Calculate correlation matrix
-cor_matrix <- cor(predictor_data, use = "complete.obs")
-print(cor_matrix)
-
-# Visualize the correlation matrix with a heatmap
-png("Figures/Supplementary/Figure_cor_andalucia_high.png", 
-    width = 15, height = 15,
-    units = "cm", pointsize = 8, res = 300)
-
-ggcorrplot(cor_matrix, lab = TRUE) ## excluding ev.dist due to correlation with age
-
-dev.off()
-##fitting GLM
-model_anda_high <- glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                      data = andalucia_traits_high,
-                      family = quasibinomial())
-
-summary(model_anda_high) ##no significant terms
-
-##pseudo R2
-pseudo_R2_anda_high <- PseudoR2(model_anda_high, which = "all")
+summary(model_andalucia_low_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
 
 
-save(model_pen_non, model_pen_low, model_pen_int, model_pen_high,
-     model_anda_non, model_anda_low, model_anda_int, model_anda_high,
-     peninsula_traits_non, peninsula_traits_low, peninsula_traits_int,
-     peninsula_traits_high,
-     andalucia_traits_non, andalucia_traits_low, andalucia_traits_int,
-     andalucia_traits_high, 
+### alternative model using richness as offset to remove its effect
+model_andalucia_low_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = andalucia_low
+)
+
+summary(model_andalucia_low_alt_2) ### in any case mean age is significant
+
+
+# Intermediate extinction -------------------------------------------------
+
+andalucia_int <- andalucia_total %>% filter(ext_fraction == "int_ex")
+
+##null model 
+model_andalucia_int_null <- glmmTMB(cbind(threatened_species,
+                                          richness - threatened_species) ~ 1,
+                                    family = betabinomial(),
+                                    data = andalucia_int)
+summary(model_andalucia_int_null)
+
+#### complete model
+model_andalucia_int_1 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ mean_age + rates,
+                                 family = betabinomial(),
+                                 data = andalucia_int)
+summary(model_andalucia_int_1)
+
+#r squared
+R2_andalucia_int_1 <- 1 - (logLik(model_andalucia_int_1) / logLik(model_andalucia_int_null))
+R2_andalucia_int_1
+
+
+### model with rates only 
+model_andalucia_int_2 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ rates,
+                                 family = betabinomial(),
+                                 data = andalucia_int)
+
+summary(model_andalucia_int_2)
+
+#r squared
+R2_andalucia_int_2 <- 1 - (logLik(model_andalucia_int_2) / logLik(model_andalucia_int_null))
+R2_andalucia_int_2
+
+### model with age only 
+model_andalucia_int_3 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ mean_age,
+                                 family = betabinomial(),
+                                 data = andalucia_int)
+
+summary(model_andalucia_int_3) 
+
+#r squared
+R2_andalucia_int_3 <- 1 - (logLik(model_andalucia_int_3) / logLik(model_andalucia_int_null))
+R2_andalucia_int_3
+
+## alternative model using richess as predictor (artifact)
+model_andalucia_int_alt_1 <- glmmTMB(cbind(threatened_species,
+                                           richness - threatened_species) ~ richness + mean_age + rates,
+                                     family = betabinomial(),
+                                     data = andalucia_int)
+
+summary(model_andalucia_int_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
+
+
+### alternative model using richness as offset to remove its effect
+model_andalucia_int_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = andalucia_int
+)
+
+summary(model_andalucia_int_alt_2) ### in any case mean age is significant
+
+
+# High extinction ---------------------------------------------------------
+andalucia_high <- andalucia_total %>% filter(ext_fraction == "high_ex")
+
+##null model 
+model_andalucia_high_null <- glmmTMB(cbind(threatened_species,
+                                           richness - threatened_species) ~ 1,
+                                     family = betabinomial(),
+                                     data = andalucia_high)
+summary(model_andalucia_high_null)
+
+#### complete model
+model_andalucia_high_1 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ mean_age + rates,
+                                 family = betabinomial(),
+                                 data = andalucia_high)
+summary(model_andalucia_high_1)
+
+# McFadden R2
+R2_andalucia_high_1 <- 1 - (logLik(model_andalucia_high_1) / logLik(model_andalucia_high_null))
+R2_andalucia_high_1
+
+### model with rates only 
+model_andalucia_high_2 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ rates,
+                                 family = betabinomial(),
+                                 data = andalucia_high)
+
+summary(model_andalucia_high_2)
+
+# McFadden R2
+R2_andalucia_high_2 <- 1 - (logLik(model_andalucia_high_2) / logLik(model_andalucia_high_null))
+R2_andalucia_high_2
+
+### model with age only 
+model_andalucia_high_3 <- glmmTMB(cbind(threatened_species,
+                                       richness - threatened_species) ~ mean_age,
+                                 family = betabinomial(),
+                                 data = andalucia_high)
+
+summary(model_andalucia_high_3) 
+
+# McFadden R2
+R2_andalucia_high_3 <- 1 - (logLik(model_andalucia_high_3) / logLik(model_andalucia_high_null))
+R2_andalucia_high_3
+
+## alternative model using richess as predictor (artifact)
+model_andalucia_high_alt_1 <- glmmTMB(cbind(threatened_species,
+                                           richness - threatened_species) ~ richness + mean_age + rates,
+                                     family = betabinomial(),
+                                     data = andalucia_high)
+
+summary(model_andalucia_high_alt_1) 
+##richness is a strong predictor, however we suspect that it could be due
+#a statistical artifact, given that richness is part of the response
+
+
+### alternative model using richness as offset to remove its effect
+model_andalucia_high_alt_2 <- glmmTMB(
+  threatened_species ~ mean_age + rates + offset(log(richness)),
+  family = nbinom2,
+  data = andalucia_high
+)
+
+summary(model_andalucia_high_alt_2) ### in any case mean age is significant
+
+
+########## saving ############
+save(model_pen_low_1, model_pen_low_2, model_pen_low_3, model_pen_low_null, 
+     model_pen_low_alt_1, model_pen_low_alt_2,
+     model_pen_int_1, model_pen_int_2, model_pen_int_3, model_pen_int_null, 
+     model_pen_int_alt_1, model_pen_int_alt_2,
+     model_pen_high_1, model_pen_high_2, model_pen_high_3, model_pen_high_null, 
+     model_pen_high_alt_1, model_pen_high_alt_2,
+     model_andalucia_low_1, model_andalucia_low_2, model_andalucia_low_3,
+     model_andalucia_low_null, 
+     model_andalucia_low_alt_1, model_andalucia_low_alt_2,
+     model_andalucia_int_1, model_andalucia_int_2, model_andalucia_int_3,
+     model_andalucia_int_null, 
+     model_andalucia_int_alt_1, model_andalucia_int_alt_2,
+     model_andalucia_high_1, model_andalucia_high_2, model_andalucia_high_3,
+     model_andalucia_high_null, 
+     model_andalucia_high_alt_1, model_andalucia_high_alt_2,
      file = "Data/Processed/data1_4.RData")
 
