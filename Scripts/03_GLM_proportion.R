@@ -94,6 +94,10 @@ summary(model_pen_low_alt_1)
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
 
+#r squared
+R2_pen_low_alt <- 1 - (logLik(model_pen_low_alt_1) / logLik(model_pen_low_null))
+R2_pen_low_alt 
+
 
 ### alternative model using richness as offset to remove its effect
 model_pen_low_alt_2 <- glmmTMB(
@@ -161,7 +165,9 @@ model_pen_int_alt_1 <- glmmTMB(cbind(threatened_species,
 summary(model_pen_int_alt_1) 
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
-
+#r squared
+R2_pen_int_alt <- 1 - (logLik(model_pen_int_alt_1) / logLik(model_pen_int_null))
+R2_pen_int_alt 
 
 ### alternative model using richness as offset to remove its effect
 model_pen_int_alt_2 <- glmmTMB(
@@ -228,6 +234,10 @@ summary(model_pen_high_alt_1)
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
 
+#r squared
+R2_pen_high_alt <- 1 - (logLik(model_pen_high_alt_1) / logLik(model_pen_high_null))
+R2_pen_high_alt 
+
 
 ### alternative model using richness as offset to remove its effect
 model_pen_high_alt_2 <- glmmTMB(
@@ -239,7 +249,7 @@ model_pen_high_alt_2 <- glmmTMB(
 summary(model_pen_high_alt_2)
 
 
-###############################andalucia#######################################
+###############################Andalusia#######################################
 
 ##calling andalucia data
 andalucia_ages_proportion <- read_csv("Data/Processed/andalucia_ages_proportion.csv")
@@ -313,6 +323,9 @@ model_andalucia_low_alt_1 <- glmmTMB(cbind(threatened_species,
 summary(model_andalucia_low_alt_1) 
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
+#r squared
+R2_andalucia_low_alt_1 <- 1 - (logLik(model_andalucia_low_alt_1) / logLik(model_andalucia_low_null))
+R2_andalucia_low_alt_1
 
 
 ### alternative model using richness as offset to remove its effect
@@ -381,7 +394,9 @@ model_andalucia_int_alt_1 <- glmmTMB(cbind(threatened_species,
 summary(model_andalucia_int_alt_1) 
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
-
+#r squared
+R2_andalucia_int_alt_1 <- 1 - (logLik(model_andalucia_int_alt_1) / logLik(model_andalucia_int_null))
+R2_andalucia_int_alt_1
 
 ### alternative model using richness as offset to remove its effect
 model_andalucia_int_alt_2 <- glmmTMB(
@@ -447,7 +462,9 @@ model_andalucia_high_alt_1 <- glmmTMB(cbind(threatened_species,
 summary(model_andalucia_high_alt_1) 
 ##richness is a strong predictor, however we suspect that it could be due
 #a statistical artifact, given that richness is part of the response
-
+#r squared
+R2_andalucia_high_alt_1 <- 1 - (logLik(model_andalucia_high_alt_1) / logLik(model_andalucia_high_null))
+R2_andalucia_high_alt_1
 
 ### alternative model using richness as offset to remove its effect
 model_andalucia_high_alt_2 <- glmmTMB(
