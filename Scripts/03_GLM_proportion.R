@@ -2,9 +2,9 @@
 
 ##Libraries
 library(tidyverse)
-library(ggcorrplot)
 library(DescTools)
 library(glmmTMB) #for using betabinomial model for overdispersion
+library(DHARMa)
 
 ##loading ClaDS from my desktop (due to memory it was not uploaded to github)
 load("Data/Processed/claDS_plant_phylo.RData") 
@@ -60,6 +60,11 @@ summary(model_pen_low_1)
 R2_pen_low_1 <- 1 - (logLik(model_pen_low_1) / logLik(model_pen_low_null))
 R2_pen_low_1 ## 0.14% no variation explained
 
+res_pen_low_1 <- simulateResiduals(model_pen_low_1)
+plot(res_pen_low_1) #only high dispersion of the residuals detected
+testDispersion(res_pen_low_1) ## high dispersion of the residuals
+testZeroInflation(res_pen_low_1) ## no problems detected with the zero
+
 
 ### model with rates only 
 model_pen_low_2 <- glmmTMB(cbind(threatened_species,
@@ -72,6 +77,12 @@ summary(model_pen_low_2)
 R2_pen_low_2 <- 1 - (logLik(model_pen_low_2) / logLik(model_pen_low_null))
 R2_pen_low_2 
 
+##Diagnostics
+res_pen_low_2 <- simulateResiduals(model_pen_low_2)
+plot(res_pen_low_2)#only high dispersion of the residuals detected
+testDispersion(res_pen_low_2) ## high dispersion of the residuals
+testZeroInflation(res_pen_low_2) # no problems detected with the zero
+
 ### model with age only 
 model_pen_low_3 <- glmmTMB(cbind(threatened_species,
                                  richness - threatened_species) ~ mean_age,
@@ -83,6 +94,11 @@ summary(model_pen_low_3)
 R2_pen_low_3 <- 1 - (logLik(model_pen_low_3) / logLik(model_pen_low_null))
 R2_pen_low_3 
 
+## Diagnostics
+res_pen_low_3 <- simulateResiduals(model_pen_low_3)
+plot(res_pen_low_3)#only high dispersion of the residuals detected
+testDispersion(res_pen_low_3) ## high dispersion of the residuals
+testZeroInflation(res_pen_low_3)
 
 ## alternative model using richess as predictor (artifact)
 model_pen_low_alt_1 <- glmmTMB(cbind(threatened_species,
@@ -132,6 +148,13 @@ summary(model_pen_int_1)
 R2_pen_int_1 <- 1 - (logLik(model_pen_int_1) / logLik(model_pen_int_null))
 R2_pen_int_1 
 
+## Diagnostics
+res_pen_int_1 <- simulateResiduals(model_pen_int_1)
+plot(res_pen_int_1)#only high dispersion of the residuals detected
+testDispersion(res_pen_int_1) ## high dispersion of the residuals
+testZeroInflation(res_pen_int_1)
+
+
 ### model with rates only 
 model_pen_int_2 <- glmmTMB(cbind(threatened_species,
                                  richness - threatened_species) ~ rates,
@@ -143,6 +166,11 @@ summary(model_pen_int_2)
 R2_pen_int_2 <- 1 - (logLik(model_pen_int_2) / logLik(model_pen_int_null))
 R2_pen_int_2 
 
+## Diagnostics
+res_pen_int_2 <- simulateResiduals(model_pen_int_2)
+plot(res_pen_int_2) #only high dispersion of the residuals detected
+testDispersion(res_pen_int_2) ## high dispersion of the residuals
+testZeroInflation(res_pen_int_2)
 
 ### model with age only 
 model_pen_int_3 <- glmmTMB(cbind(threatened_species,
@@ -154,6 +182,13 @@ summary(model_pen_int_3)
 #r squared
 R2_pen_int_3 <- 1 - (logLik(model_pen_int_3) / logLik(model_pen_int_null))
 R2_pen_int_3 
+
+
+## Diagnostics
+res_pen_int_3 <- simulateResiduals(model_pen_int_3)
+plot(res_pen_int_3) #only high dispersion of the residuals detected
+testDispersion(res_pen_int_3) ## high dispersion of the residuals
+testZeroInflation(res_pen_int_3)
 
 
 ## alternative model using richess as predictor (artifact)
@@ -202,6 +237,11 @@ summary(model_pen_high_1)
 R2_pen_high_1 <- 1 - (logLik(model_pen_high_1) / logLik(model_pen_high_null))
 R2_pen_high_1
 
+## Diagnostics
+res_pen_high_1 <- simulateResiduals(model_pen_high_1)
+plot(res_pen_high_1)#only high dispersion of the residuals detected
+testDispersion(res_pen_hig_1) ## high dispersion of the residuals
+testZeroInflation(res_pen_high_1) ## zero no problem
 
 ### model with rates only 
 model_pen_high_2 <- glmmTMB(cbind(threatened_species,
@@ -213,12 +253,24 @@ summary(model_pen_high_2)
 R2_pen_high_2 <- 1 - (logLik(model_pen_high_2) / logLik(model_pen_high_null))
 R2_pen_high_2
 
+## Diagnostics
+res_pen_high_2 <- simulateResiduals(model_pen_high_2)
+plot(res_pen_high_2)#only high dispersion of the residuals detected
+testDispersion(res_pen_high_2) ## high dispersion of the residuals
+testZeroInflation(res_pen_high_2) ## zero no problem
+
 ### model with age only 
 model_pen_high_3 <- glmmTMB(cbind(threatened_species,
                                  richness - threatened_species) ~ mean_age,
                            family = betabinomial(),
                            data = peninsula_high)
 summary(model_pen_high_3) 
+
+## Diagnostics
+res_pen_high_3 <- simulateResiduals(model_pen_high_3)
+plot(res_pen_high_3)#only high dispersion of the residuals detected
+testDispersion(res_pen_high_3) ## high dispersion of the residuals
+testZeroInflation(res_pen_high_3) ## zero no problem
 
 #r squared
 R2_pen_high_3 <- 1 - (logLik(model_pen_high_3) / logLik(model_pen_high_null))
@@ -289,6 +341,13 @@ summary(model_andalucia_low_1)
 R2_andalucia_low_1 <- 1 - (logLik(model_andalucia_low_1) / logLik(model_andalucia_low_null))
 R2_andalucia_low_1
 
+## Diagnostics
+res_andalucia_low_1 <- simulateResiduals(model_andalucia_low_1)
+plot(res_andalucia_low_1)#no problems detected
+testDispersion(res_andalucia_low_1) ## no overdispersion of the residuals
+testZeroInflation(res_andalucia_low_1) ## zero no problem
+
+
 ### model with rates only 
 model_andalucia_low_2 <- glmmTMB(cbind(threatened_species,
                                  richness - threatened_species) ~ rates,
@@ -301,6 +360,12 @@ summary(model_andalucia_low_2)
 R2_andalucia_low_2 <- 1 - (logLik(model_andalucia_low_2) / logLik(model_andalucia_low_null))
 R2_andalucia_low_2
 
+## Diagnostics
+res_andalucia_low_2 <- simulateResiduals(model_andalucia_low_2)
+plot(res_andalucia_low_2)#no problems detected
+testDispersion(res_andalucia_low_2) ## no problem with the dispersion of the residuals
+testZeroInflation(res_andalucia_low_2) ## zero no problem
+
 ### model with age only 
 model_andalucia_low_3 <- glmmTMB(cbind(threatened_species,
                                  richness - threatened_species) ~ mean_age,
@@ -312,6 +377,12 @@ summary(model_andalucia_low_3)
 #r squared
 R2_andalucia_low_3 <- 1 - (logLik(model_andalucia_low_3) / logLik(model_andalucia_low_null))
 R2_andalucia_low_3
+
+## Diagnostics
+res_andalucia_low_3 <- simulateResiduals(model_andalucia_low_3)
+plot(res_andalucia_low_3)#no problems detected
+testDispersion(res_andalucia_low_3) ## no problem with the dispersion of the residuals
+testZeroInflation(res_andalucia_low_3) ## zero no problem
 
 
 ## alternative model using richess as predictor (artifact)
@@ -360,6 +431,12 @@ summary(model_andalucia_int_1)
 R2_andalucia_int_1 <- 1 - (logLik(model_andalucia_int_1) / logLik(model_andalucia_int_null))
 R2_andalucia_int_1
 
+## Diagnostics
+res_andalucia_int_1 <- simulateResiduals(model_andalucia_int_1)
+plot(res_andalucia_int_1)#no problems detected
+testDispersion(res_andalucia_int_1) ## no problem with the dispersion of the residuals
+testZeroInflation(res_andalucia_int_1) ## zero no problem
+
 
 ### model with rates only 
 model_andalucia_int_2 <- glmmTMB(cbind(threatened_species,
@@ -373,6 +450,12 @@ summary(model_andalucia_int_2)
 R2_andalucia_int_2 <- 1 - (logLik(model_andalucia_int_2) / logLik(model_andalucia_int_null))
 R2_andalucia_int_2
 
+## Diagnostics
+res_andalucia_int_2 <- simulateResiduals(model_andalucia_int_2)
+plot(res_andalucia_int_2)#no problems detected
+testDispersion(res_andalucia_int_2) ## no problem with the dispersion of the residuals
+testZeroInflation(res_andalucia_int_2) ## zero no problem
+
 ### model with age only 
 model_andalucia_int_3 <- glmmTMB(cbind(threatened_species,
                                        richness - threatened_species) ~ mean_age,
@@ -380,6 +463,12 @@ model_andalucia_int_3 <- glmmTMB(cbind(threatened_species,
                                  data = andalucia_int)
 
 summary(model_andalucia_int_3) 
+
+## Diagnostics
+res_andalucia_int_3 <- simulateResiduals(model_andalucia_int_3)
+plot(res_andalucia_int_3)#no problems detected
+testDispersion(res_andalucia_int_3) ## no problem with the dispersion of the residuals
+testZeroInflation(res_andalucia_int_3) ## zero no problem
 
 #r squared
 R2_andalucia_int_3 <- 1 - (logLik(model_andalucia_int_3) / logLik(model_andalucia_int_null))
