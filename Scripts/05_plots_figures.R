@@ -2,6 +2,117 @@
 
 ###Libraries
 library(tidyverse)
+library(ggeffects)
+library(gridExtra)
+library(ggpubr)
+
+# Data after running scripts from 1 to 4
+load("Data/Processed/data1_4.RData")
+
+
+################my theme###############################
+## themes
+mynamestheme <- theme(strip.text = element_text(family = "serif", size = (12)),
+                      plot.title = element_text(family = "serif", size = (15),
+                                                face = "bold", hjust = 0.5),
+                      axis.title = element_text(family = "serif", size = (13),
+                                                face = "bold"),
+                      axis.text = element_text(family = "serif", size = (12)),
+                      legend.title = element_text(family = "serif", size = (11),
+                                                  face = "bold"),
+                      legend.text = element_text(family = "serif", size = (11)),
+                      legend.background = element_rect(fill="gray90",
+                                                       size=.5, linetype="dotted"),
+                      legend.position = "bottom")
+
+
+##only plotting the supported model for each region and extinction scenario
+
+# Peninsula ---------------------------------------------------------------
+
+### low extinction (Div. rates)
+
+##predicting
+pred_pen_low <- ggpredict(model_pen_low_2, terms = "rates") 
+
+f_pred_pen_low <- ggplot(pred_pen_low, aes(x = x, y = predicted)) +
+  geom_line(color = "blue", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "blue", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Diversification rate", y = "Pred. proportion of threatened sp.")+
+  ggtitle("Low extinction")+
+  mynamestheme
+
+## intermediate extinction (Div.rates)
+pred_pen_int <- ggpredict(model_pen_int_2, terms = "rates")
+
+f_pred_pen_int <- ggplot(pred_pen_int, aes(x = x, y = predicted)) +
+  geom_line(color = "blue", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "blue", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Diversification rate", y = "Pred. proportion of threatened sp.")+
+  ggtitle("Intermediate extinction")+
+  mynamestheme
+
+## high extinction (Genus ages)
+pred_pen_high <- ggpredict(model_pen_high_3, terms = "mean_age")
+
+f_pred_pen_high <- ggplot(pred_pen_high, aes(x = x, y = predicted)) +
+  geom_line(color = "blue", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "blue", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Genus ages", y = "Pred. proportion of threatened sp.")+
+  ggtitle("High extinction")+
+  mynamestheme
+
+
+# Andalusia ---------------------------------------------------------------
+
+## low extinction (genus ages)
+pred_and_low <- ggpredict(model_andalucia_low_3, terms = "mean_age")
+
+f_pred_and_low <- ggplot(pred_and_low, aes(x = x, y = predicted)) +
+  geom_line(color = "red", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "red", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Genus ages", y = "Pred. proportion of threatened sp.")+
+  ggtitle("Low extinction")+
+  mynamestheme
+
+## Intermediate extinction (genus ages)
+pred_and_int <- ggpredict(model_andalucia_int_3, terms = "mean_age")
+
+f_pred_and_int <- ggplot(pred_and_int, aes(x = x, y = predicted)) +
+  geom_line(color = "red", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "red", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Genus ages", y = "Pred. proportion of threatened sp.")+
+  ggtitle("Intermediate extinction")+
+  mynamestheme
+
+## High extinction (genus ages)
+pred_and_high <- ggpredict(model_andalucia_high_3, terms = "mean_age")
+
+f_pred_and_high <- ggplot(pred_and_high, aes(x = x, y = predicted)) +
+  geom_line(color = "red", linewidth= 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "red", alpha = 0.15, color = NA)+
+  theme_classic()+
+  labs(x = "Genus ages", y = "Pred. proportion of threatened sp.")+
+  ggtitle("High extinction")+
+  mynamestheme
+
+
+
+###################Figures##########################################
+
+###Libraries
+library(tidyverse)
 library(gridExtra)
 library(ggpubr)
 
