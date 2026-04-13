@@ -44,6 +44,65 @@ calculate_PD_curve <- function(tree, df) {
   return(pd_curve)
 }
 
+####### adapting the previous function for accepting EDGE2 metrics ########
+
+calculate_PD_curve_EDGE2 <- function(tree, df,
+                                     ranking = "sum_pext",
+                                     random_ties = TRUE) {
+  
+  require(dplyr)
+  require(ape)
+  
+  # Copy objects (avoid overwriting originals)
+  tree_sim <- tree
+  df_sim <- df
+  
+  pd_curve <- c()
+  
+  while (nrow(df_sim) > 0) {
+    
+    # 1. Compute genus-level scores
+    genus_scores <- df_sim %>%
+      group_by(genus) %>%
+      summarise(
+        sum_pext = sum(pext, na.rm = TRUE),
+        mean_pext = mean(pext, na.rm = TRUE),
+        sum_EDGE = sum(EDGE, na.rm = TRUE),
+        .groups = "drop"
+      )
+    
+    # 2. Select ranking variable
+    scores <- genus_scores[[ranking]]
+    names(scores) <- genus_scores$genus
+    
+    max_val <- max(scores)
+    candidates <- names(scores)[scores == max_val]
+    
+    if (length(candidates) > 1 && random_ties) {
+      selected_genus <- sample(candidates, 1)
+    } else {
+      selected_genus <- candidates[1]
+    }
+    
+    # 3. Identify species to remove
+    species_to_remove <- df_sim$species[df_sim$genus == selected_genus]
+    
+    # 4. Prune tree
+    tree_sim <- ape::drop.tip(tree_sim, species_to_remove)
+    
+    # 5. Compute PD
+    pd_curve <- c(pd_curve, sum(tree_sim$edge.length))
+    
+    # 6. Update dataframe
+    df_sim <- df_sim[df_sim$genus != selected_genus, ]
+    
+    # Stop if tree empty
+    if (length(tree_sim$tip.label) == 0) break
+  }
+  
+  return(pd_curve)
+}
+
 
 # Define a custom function to extract and format coefficients
 tidy_rq_summary <- function(rq_sum) {

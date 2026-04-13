@@ -5,6 +5,8 @@ library(tidyverse)
 library(phytools)
 devtools::install_github("iramosgutierrez/rEDGE")
 library(rEDGE)
+source("Scripts/functions.R")
+
 
 ### Reading mega plant phylogeny
 plant_phylo <- read.tree("Data/Raw/PhytoPhylo.tre")
@@ -53,6 +55,8 @@ EDGE2_Peninsula <- calculate_EDGE2(tree = peninsula_phylo,
 #saving
 write_csv(EDGE2_Peninsula, file = "Data/Processed/EDGE2_Peninsula.csv")
 
+#reading
+EDGE2_Peninsula <- read_csv(file = "Data/Processed/EDGE2_Peninsula.csv")
 
 ############# Andalusia #################
 andalusia_iucn <- read_csv("Data/Processed/andalucia_iucn.csv")
@@ -103,3 +107,298 @@ EDGE2_andalusia <- calculate_EDGE2(tree = andalusia_phylo,
 
 ##saving
 write_csv(EDGE2_andalusia, file = "Data/Processed/EDGE2_Andalusia.csv")
+
+## reading
+EDGE2_andalusia <- read_csv(file = "Data/Processed/EDGE2_Andalusia.csv")
+
+############## Implementing NULL models #######################
+
+# Peninsula ---------------------------------------------------------------
+
+########### probability of extinction ####################
+
+##calling the 'calculate_pd_curve_EDGE2' function, using probability of extinction (pext)
+pd_curves_peninsula <- replicate(100, calculate_PD_curve_EDGE2(tree = peninsula_phylo,
+                                                               df = EDGE2_Peninsula))
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_peninsula <- rowMeans(pd_curves_peninsula)
+observed_auc_peninsula <- mean(colSums(pd_curves_peninsula))
+
+##null pd curves
+
+##generating the null test
+set.seed(13)
+
+null_pd_curves_peninsula <- lapply(1:99, function(i) {
+  
+  df_null <- EDGE2_Peninsula
+  
+  # Shuffle extinction probabilities
+  df_null$pext <- sample(df_null$pext)
+  
+  # Recalculate PD curve
+  pd_curve_null <- calculate_PD_curve_EDGE2(
+    tree = peninsula_phylo,
+    df = df_null,
+    ranking = "sum_pext"
+  )
+  
+  return(pd_curve_null)
+})
+
+
+#null auc
+null_auc_peninsula <- sapply(null_pd_curves_peninsula, function(curve) {
+  sum(curve, na.rm = TRUE)
+})
+
+p_value <- mean(null_auc_peninsula <= observed_auc_peninsula)
+
+
+
+#mean null auc
+mean_null_auc_peninsula <- mean(null_auc_peninsula)
+
+#confidence interval
+ci_null_auc_peninsula <- quantile(null_auc_peninsula, probs = c(0.05, 0.975))
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_peninsula <- data.frame(
+  step = 1:length(mean_pd_curve_peninsula),
+  PD = mean_pd_curve_peninsula)
+
+write_csv(pd_curves_df_peninsula, file = "Data/Processed/pd_curves_df_peninsula.csv")
+
+# null PD curves for shading 
+max_len <- max(sapply(null_pd_curves_peninsula, length))
+
+null_pd_padded <- lapply(null_pd_curves_peninsula, function(curve) {
+  length(curve) <- max_len
+  return(curve)
+})
+
+#as df
+null_pd_summary_peninsula <- as.data.frame(null_pd_padded)
+
+colnames(null_pd_summary_peninsula) <- paste0("Sim", 1:99)  # Name columns
+
+null_pd_summary_peninsula$step <- 1:nrow(null_pd_summary_peninsula)
+
+##saving
+write_csv(null_pd_summary_peninsula,
+          file = "Data/Processed/null_pd_curves_peninsula.csv")
+
+# Subset of simulations to plot (25 sim)
+subset_columns <- c("step", paste0("Sim", sample(1:99, 99))) 
+
+subset_df_pen <- null_pd_summary_peninsula[, subset_columns]
+
+# Reshape to long format for ggplot
+long_df_peninsula <- null_pd_summary_peninsula %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Figure_Peninsula_PD_pext.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_peninsula_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_peninsula,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_peninsula,
+            aes(x = step, y = PD), color = "blue", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = NULL,
+    y = "Phylogenetic Diversity (PD)",
+    title = "Peninsula Phylogenetic Diversity loss",
+    subtitle = "Based on the prob. of extinction [EDGE2]"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_peninsula_plot
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_peninsula_df <- data.frame(null = null_auc_peninsula)
+
+# Create the histogram
+
+svg("Figures/Figure_Peninsula_AUC_pext.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_peninsula_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_peninsula), color = "blue",
+             linetype = "solid", size = 1.5) +
+  labs(y = "Frequency", x = "AUC") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()
+
+
+################## EDGE ####################
+
+##calling the 'calculate_pd_curve_EDGE2' function, using EDGE
+pd_curves_peninsula_edge <- replicate(100, calculate_PD_curve_EDGE2(tree = peninsula_phylo,
+                                                                    df = EDGE2_Peninsula,
+                                                                    ranking = "sum_EDGE"))
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_peninsula_edge <- rowMeans(pd_curves_peninsula_edge)
+observed_auc_peninsula_edge <- mean(colSums(pd_curves_peninsula_edge))
+
+##null pd curves
+
+##generating the null test
+set.seed(13)
+
+null_pd_curves_peninsula_edge <- lapply(1:99, function(i) {
+  
+  df_null <- EDGE2_Peninsula
+  
+  # Shuffle extinction probabilities
+  df_null$EDGE <- sample(df_null$EDGE)
+  
+  # Recalculate PD curve
+  pd_curve_null <- calculate_PD_curve_EDGE2(
+    tree = peninsula_phylo,
+    df = df_null,
+    ranking = "sum_EDGE"
+  )
+  
+  return(pd_curve_null)
+})
+
+
+#null auc
+null_auc_peninsula_edge <- sapply(null_pd_curves_peninsula_edge, function(curve) {
+  sum(curve, na.rm = TRUE)
+})
+
+p_value_peninsula_edge <- mean(null_auc_peninsula_edge <= observed_auc_peninsula_edge)
+
+
+
+#mean null auc
+mean_null_auc_peninsula_edge <- mean(null_auc_peninsula_edge)
+
+#confidence interval
+ci_null_auc_peninsula_edge <- quantile(null_auc_peninsula_edge, 
+                                       probs = c(0.05, 0.975))
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_peninsula_edge <- data.frame(
+  step = 1:length(mean_pd_curve_peninsula_edge),
+  PD = mean_pd_curve_peninsula_edge)
+
+#saving
+write_csv(pd_curves_df_peninsula_edge,
+          file = "Data/Processed/pd_curves_df_peninsula_edge.csv")
+
+# null PD curves for shading 
+max_len <- max(sapply(null_pd_curves_peninsula_edge, length))
+
+null_pd_padded_edge <- lapply(null_pd_curves_peninsula_edge, function(curve) {
+  length(curve) <- max_len
+  return(curve)
+})
+
+#as df
+null_pd_summary_peninsula_edge <- as.data.frame(null_pd_padded_edge)
+
+colnames(null_pd_summary_peninsula_edge) <- paste0("Sim", 1:99)  # Name columns
+
+null_pd_summary_peninsula_edge$step <- 1:nrow(null_pd_summary_peninsula_edge)
+
+##saving
+write_csv(null_pd_summary_peninsula_edge,
+          file = "Data/Processed/null_pd_curves_peninsula_edge.csv")
+
+# Subset of simulations to plot (25 sim)
+subset_columns <- c("step", paste0("Sim", sample(1:99, 99))) 
+
+subset_df_pen_edge <- null_pd_summary_peninsula_edge[, subset_columns]
+
+# Reshape to long format for ggplot
+long_df_peninsula_edge <- null_pd_summary_peninsula_edge %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Figure_Peninsula_PD_EDGE.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_peninsula_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_peninsula_edge,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_peninsula_edge,
+            aes(x = step, y = PD), color = "blue", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = NULL,
+    y = "Phylogenetic Diversity (PD)",
+    title = "Peninsula Phylogenetic Diversity loss",
+    subtitle = "Based on the metric EDGE"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_peninsula_plot
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_peninsula_edge_df <- data.frame(null = null_auc_peninsula_edge)
+
+# Create the histogram
+
+svg("Figures/Figure_Peninsula_AUC_EDGE.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_peninsula_edge_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_peninsula_edge), color = "blue",
+             linetype = "solid", size = 1.5) +
+  labs(y = "Frequency", x = "AUC") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()
+
