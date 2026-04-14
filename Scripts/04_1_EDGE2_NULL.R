@@ -402,3 +402,285 @@ ggplot(null_auc_peninsula_edge_df, aes(x = null)) +
 
 dev.off()
 
+# andalusia ---------------------------------------------------------------
+
+########### probability of extinction ####################
+
+#creating genus column
+EDGE2_andalusia <- EDGE2_andalusia%>%
+                   mutate(genus = word(species, 1, sep = "_"))
+
+##calling the 'calculate_pd_curve_EDGE2' function, using probability of extinction (pext)
+pd_curves_andalusia <- replicate(100, calculate_PD_curve_EDGE2(tree = andalusia_phylo,
+                                                               df = EDGE2_andalusia))
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_andalusia <- rowMeans(pd_curves_andalusia)
+observed_auc_andalusia <- mean(colSums(pd_curves_andalusia))
+
+##null pd curves
+
+##generating the null test
+set.seed(13)
+
+null_pd_curves_andalusia <- lapply(1:99, function(i) {
+  
+  df_null <- EDGE2_andalusia
+  
+  # Shuffle extinction probabilities
+  df_null$pext <- sample(df_null$pext)
+  
+  # Recalculate PD curve
+  pd_curve_null <- calculate_PD_curve_EDGE2(
+    tree = andalusia_phylo,
+    df = df_null,
+    ranking = "sum_pext"
+  )
+  
+  return(pd_curve_null)
+})
+
+
+#null auc
+null_auc_andalusia <- sapply(null_pd_curves_andalusia, function(curve) {
+  sum(curve, na.rm = TRUE)
+})
+
+p_value <- mean(null_auc_andalusia <= observed_auc_andalusia)
+
+
+
+#mean null auc
+mean_null_auc_andalusia <- mean(null_auc_andalusia)
+
+#confidence interval
+ci_null_auc_andalusia <- quantile(null_auc_andalusia, probs = c(0.05, 0.975))
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_andalusia <- data.frame(
+  step = 1:length(mean_pd_curve_andalusia),
+  PD = mean_pd_curve_andalusia)
+
+write_csv(pd_curves_df_andalusia, file = "Data/Processed/pd_curves_df_andalusia_pext.csv")
+
+# null PD curves for shading 
+max_len <- max(sapply(null_pd_curves_andalusia, length))
+
+null_pd_padded <- lapply(null_pd_curves_andalusia, function(curve) {
+  length(curve) <- max_len
+  return(curve)
+})
+
+#as df
+null_pd_summary_andalusia <- as.data.frame(null_pd_padded)
+
+colnames(null_pd_summary_andalusia) <- paste0("Sim", 1:99)  # Name columns
+
+null_pd_summary_andalusia$step <- 1:nrow(null_pd_summary_andalusia)
+
+##saving
+write_csv(null_pd_summary_andalusia,
+          file = "Data/Processed/null_pd_curves_andalusia_pext.csv")
+
+# Reshape to long format for ggplot
+long_df_andalusia <- null_pd_summary_andalusia %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Figure_andalusia_PD_pext.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_andalusia_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_andalusia,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_andalusia,
+            aes(x = step, y = PD), color = "orange", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = NULL,
+    y = "Phylogenetic Diversity (PD)",
+    title = "Andalusia Phylogenetic Diversity loss",
+    subtitle = "Based on the prob. of extinction [EDGE2]"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_andalusia_plot
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_andalusia_df <- data.frame(null = null_auc_andalusia)
+
+# Create the histogram
+
+svg("Figures/Figure_andalusia_AUC_pext.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_andalusia_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_andalusia), color = "orange",
+             linetype = "solid", size = 1.5) +
+  labs(y = "Frequency", x = "AUC") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()
+
+
+################## EDGE ####################
+
+##calling the 'calculate_pd_curve_EDGE2' function, using EDGE
+pd_curves_andalusia_edge <- replicate(100, calculate_PD_curve_EDGE2(tree = andalusia_phylo,
+                                                                    df = EDGE2_andalusia,
+                                                                    ranking = "sum_EDGE"))
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_andalusia_edge <- rowMeans(pd_curves_andalusia_edge)
+observed_auc_andalusia_edge <- mean(colSums(pd_curves_andalusia_edge))
+
+##null pd curves
+
+##generating the null test
+set.seed(13)
+
+null_pd_curves_andalusia_edge <- lapply(1:99, function(i) {
+  
+  df_null <- EDGE2_andalusia
+  
+  # Shuffle extinction probabilities
+  df_null$EDGE <- sample(df_null$EDGE)
+  
+  # Recalculate PD curve
+  pd_curve_null <- calculate_PD_curve_EDGE2(
+    tree = andalusia_phylo,
+    df = df_null,
+    ranking = "sum_EDGE"
+  )
+  
+  return(pd_curve_null)
+})
+
+
+#null auc
+null_auc_andalusia_edge <- sapply(null_pd_curves_andalusia_edge, function(curve) {
+  sum(curve, na.rm = TRUE)
+})
+
+p_value_andalusia_edge <- mean(null_auc_andalusia_edge <= observed_auc_andalusia_edge)
+
+
+
+#mean null auc
+mean_null_auc_andalusia_edge <- mean(null_auc_andalusia_edge)
+
+#confidence interval
+ci_null_auc_andalusia_edge <- quantile(null_auc_andalusia_edge, 
+                                       probs = c(0.05, 0.975))
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_andalusia_edge <- data.frame(
+  step = 1:length(mean_pd_curve_andalusia_edge),
+  PD = mean_pd_curve_andalusia_edge)
+
+#saving
+write_csv(pd_curves_df_andalusia_edge,
+          file = "Data/Processed/pd_curves_df_andalusia_edge.csv")
+
+# null PD curves for shading 
+max_len <- max(sapply(null_pd_curves_andalusia_edge, length))
+
+null_pd_padded_edge <- lapply(null_pd_curves_andalusia_edge, function(curve) {
+  length(curve) <- max_len
+  return(curve)
+})
+
+#as df
+null_pd_summary_andalusia_edge <- as.data.frame(null_pd_padded_edge)
+
+colnames(null_pd_summary_andalusia_edge) <- paste0("Sim", 1:99)  # Name columns
+
+null_pd_summary_andalusia_edge$step <- 1:nrow(null_pd_summary_andalusia_edge)
+
+##saving
+write_csv(null_pd_summary_andalusia_edge,
+          file = "Data/Processed/null_pd_curves_andalusia_edge.csv")
+
+# Reshape to long format for ggplot
+long_df_andalusia_edge <- null_pd_summary_andalusia_edge %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Figure_andalusia_PD_EDGE.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_andalusia_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_andalusia_edge,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_andalusia_edge,
+            aes(x = step, y = PD), color = "orange", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = NULL,
+    y = "Phylogenetic Diversity (PD)",
+    title = "Andalusia Phylogenetic Diversity loss",
+    subtitle = "Based on the metric EDGE"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_andalusia_plot
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_andalusia_edge_df <- data.frame(null = null_auc_andalusia_edge)
+
+# Create the histogram
+
+svg("Figures/Figure_andalusia_AUC_EDGE.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_andalusia_edge_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_andalusia_edge), color = "orange",
+             linetype = "solid", size = 1.5) +
+  labs(y = "Frequency", x = "AUC") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()

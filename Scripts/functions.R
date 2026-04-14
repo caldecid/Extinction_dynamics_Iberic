@@ -185,3 +185,17 @@ aggregate_taxa <- function(x, category) {
   return(as.data.frame(cbind(taxa, effect_neg)))
 }
 
+################my theme###############################
+## themes
+mynamestheme <- theme(strip.text = element_text(family = "serif", size = (12)),
+                      plot.title = element_text(family = "serif", size = (15),
+                                                face = "bold", hjust = 0.5),
+                      axis.title = element_text(family = "serif", size = (13),
+                                                face = "bold"),
+                      axis.text = element_text(family = "serif", size = (12)),
+                      legend.title = element_text(family = "serif", size = (11),
+                                                  face = "bold"),
+                      legend.text = element_text(family = "serif", size = (11)),
+                      legend.background = element_rect(fill="gray90",
+                                                       size=.5, linetype="dotted"),
+                      legend.position = "bottom")
