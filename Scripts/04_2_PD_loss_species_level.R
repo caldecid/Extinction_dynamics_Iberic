@@ -55,6 +55,7 @@ calculate_PD_curve_prop <- function(tree, df,
 
 library(tidyverse)
 library(phytools)
+library(patchwork)
 source("Scripts/functions.R")
 
 
@@ -147,6 +148,9 @@ pd_curves_peninsula_df <- data.frame(
 write_csv(pd_curves_peninsula_df,
                file = "Data/Processed/pd_curves_df_peninsula_prop.csv")
 
+#read
+pd_curves_df_peninsula_prop <- read_csv("Data/Processed/pd_curves_df_peninsula_prop.csv")
+
 # null PD curves for shading 
 null_pd_summary_peninsula <- cbind(step = 1:nrow(null_pd_curves_peninsula),
                                    null_pd_curves_peninsula)
@@ -162,9 +166,12 @@ null_pd_summary_peninsula <- as.data.frame(null_pd_summary_peninsula)
 write_csv(null_pd_summary_peninsula,
           file = "Data/Processed/null_pd_curves_peninsula_prop.csv")
 
+#reading
+null_pd_curves_peninsula_prop <- read_csv("Data/Processed/null_pd_curves_peninsula_prop.csv")
+
 
 # Reshape to long format for ggplot
-long_df_peninsula <- null_pd_summary_peninsula %>%
+long_df_peninsula_prop <- null_pd_curves_peninsula_prop %>%
   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
 
 
@@ -174,13 +181,13 @@ svg("Figures/Figure_Peninsula_PD_prop.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_peninsula_plot <- ggplot() +
+pd_peninsula_prop_plot <- ggplot() +
   # Shaded area for the range of null PD curves
-  geom_line(data = long_df_peninsula,
+  geom_line(data = long_df_peninsula_prop,
             aes(x = step, y = PD), color = "gray", 
             size = 0.5, alpha = 0.5) +
   # Observed mean PD curve
-  geom_line(data = pd_curves_peninsula_df,
+  geom_line(data = pd_curves_df_peninsula_prop,
             aes(x = step, y = PD), color = "blue", size = 1.2) +
   # Overlay some null PD curves for illustration
   labs(
@@ -192,7 +199,7 @@ pd_peninsula_plot <- ggplot() +
   theme_classic() +
   mynamestheme
 
-pd_peninsula_plot
+pd_peninsula_prop_plot
 
 dev.off()
 
@@ -311,6 +318,9 @@ pd_curves_andalusia_df <- data.frame(
 write_csv(pd_curves_andalusia_df,
           file = "Data/Processed/pd_curves_df_andalusia_prop.csv")
 
+##reading
+pd_curves_df_andalusia_prop <- read_csv("Data/Processed/pd_curves_df_andalusia_prop.csv")
+
 # null PD curves for shading 
 null_pd_summary_andalusia <- cbind(step = 1:nrow(null_pd_curves_andalusia),
                                    null_pd_curves_andalusia)
@@ -326,9 +336,12 @@ null_pd_summary_andalusia <- as.data.frame(null_pd_summary_andalusia)
 write_csv(null_pd_summary_andalusia,
           file = "Data/Processed/null_pd_curves_andalusia_prop.csv")
 
+#reading
+null_pd_curves_andalusia_prop <- read_csv( "Data/Processed/null_pd_curves_andalusia_prop.csv")
+
 
 # Reshape to long format for ggplot
-long_df_andalusia <- null_pd_summary_andalusia %>%
+long_df_andalusia_prop <- null_pd_curves_andalusia_prop %>%
   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
 
 
@@ -338,25 +351,24 @@ svg("Figures/Figure_andalusia_PD_prop.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_andalusia_plot <- ggplot() +
+pd_andalusia_prop_plot <- ggplot() +
   # Shaded area for the range of null PD curves
-  geom_line(data = long_df_andalusia,
+  geom_line(data = long_df_andalusia_prop,
             aes(x = step, y = PD), color = "gray", 
             size = 0.5, alpha = 0.5) +
   # Observed mean PD curve
-  geom_line(data = pd_curves_andalusia_df,
+  geom_line(data = pd_curves_df_andalusia_prop,
             aes(x = step, y = PD), color = "orange", size = 1.2) +
   # Overlay some null PD curves for illustration
   labs(
     x = NULL,
     y = "Phylogenetic Diversity (PD)",
-    title = "Andalusia Phylogenetic Diversity loss",
-    subtitle = "Based on the Proportion of threatened sp."
+    title = "Proportion of threatened sp."
   ) +
   theme_classic() +
   mynamestheme
 
-pd_andalusia_plot
+pd_andalusia_prop_plot
 
 dev.off()
 
@@ -385,5 +397,52 @@ ggplot(null_auc_andalusia_df, aes(x = null)) +
         axis.ticks.y = element_blank())+
   mynamestheme
 
+
+dev.off()
+
+
+# Summary plot ------------------------------------------------------------
+
+theme_shared <- theme_classic() +
+  mynamestheme +
+  theme(
+    plot.title = element_text(size = 13, face = "italic"),
+    axis.title = element_text(size = 13)
+  )
+
+pd_peninsula_prop_plot <- pd_peninsula_prop_plot + theme_shared
+pd_peninsula_pext_plot <- pd_peninsula_pext_plot + theme_shared
+pd_peninsula_EDGE_plot <- pd_peninsula_EDGE_plot + theme_shared
+
+pd_andalusia_prop_plot <- pd_andalusia_prop_plot + theme_shared
+pd_andalusia_pext_plot <- pd_andalusia_pext_plot + theme_shared
+pd_andalusia_EDGE_plot <- pd_andalusia_EDGE_plot + theme_shared
+
+
+# Create row titles
+title_peninsula <- ggplot() +
+  annotate("text", x = 0, y = 0, label = "Peninsular Spain",
+           hjust = 0.5, size = 5, fontface = "bold", family = "serif") +
+  theme_void()
+
+title_andalusia <- ggplot() +
+  annotate("text", x = 0, y = 0, label = "Eastern Andalusia",
+           hjust = 0.5, size = 5, fontface = "bold", family = "serif") +
+  theme_void()
+
+
+combined_plot <-
+  (title_peninsula | plot_spacer() | plot_spacer()) /
+  (pd_peninsula_prop_plot + pd_peninsula_pext_plot + pd_peninsula_EDGE_plot) /
+  (title_andalusia | plot_spacer() | plot_spacer()) /
+  (pd_andalusia_prop_plot + pd_andalusia_pext_plot + pd_andalusia_EDGE_plot) +
+  plot_layout(heights = c(0.08, 1, 0.08, 1)) 
+
+#saving
+svg("Figures/Figure_PD_loss_regions.svg",
+    width = 20/2.54,   # convert cm → inches
+    height = 16/2.54)
+
+print(combined_plot)
 
 dev.off()

@@ -169,7 +169,11 @@ pd_curves_df_peninsula <- data.frame(
   step = 1:length(mean_pd_curve_peninsula),
   PD = mean_pd_curve_peninsula)
 
+##saving
 write_csv(pd_curves_df_peninsula, file = "Data/Processed/pd_curves_df_peninsula.csv")
+
+#reading
+pd_curves_df_peninsula <- read_csv("Data/Processed/pd_curves_df_peninsula.csv")
 
 # null PD curves for shading 
 max_len <- max(sapply(null_pd_curves_peninsula, length))
@@ -190,10 +194,8 @@ null_pd_summary_peninsula$step <- 1:nrow(null_pd_summary_peninsula)
 write_csv(null_pd_summary_peninsula,
           file = "Data/Processed/null_pd_curves_peninsula.csv")
 
-# Subset of simulations to plot (25 sim)
-subset_columns <- c("step", paste0("Sim", sample(1:99, 99))) 
-
-subset_df_pen <- null_pd_summary_peninsula[, subset_columns]
+##reading
+null_pd_summary_peninsula <- read_csv("Data/Processed/null_pd_curves_peninsula.csv")
 
 # Reshape to long format for ggplot
 long_df_peninsula <- null_pd_summary_peninsula %>%
@@ -206,7 +208,7 @@ svg("Figures/Figure_Peninsula_PD_pext.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_peninsula_plot <- ggplot() +
+pd_peninsula_pext_plot <- ggplot() +
   # Shaded area for the range of null PD curves
   geom_line(data = long_df_peninsula,
             aes(x = step, y = PD), color = "gray", 
@@ -216,15 +218,15 @@ pd_peninsula_plot <- ggplot() +
             aes(x = step, y = PD), color = "blue", size = 1.2) +
   # Overlay some null PD curves for illustration
   labs(
-    x = NULL,
+    x = "Removed genera",
     y = "Phylogenetic Diversity (PD)",
-    title = "Peninsula Phylogenetic Diversity loss",
-    subtitle = "Based on the prob. of extinction [EDGE2]"
+    #title = "Peninsula Phylogenetic Diversity loss",
+    title = "Based on extinction probability"
   ) +
   theme_classic() +
   mynamestheme
 
-pd_peninsula_plot
+pd_peninsula_pext_plot
 
 dev.off()
 
@@ -317,6 +319,9 @@ pd_curves_df_peninsula_edge <- data.frame(
 write_csv(pd_curves_df_peninsula_edge,
           file = "Data/Processed/pd_curves_df_peninsula_edge.csv")
 
+#reading
+pd_curves_df_peninsula_edge <- read_csv("Data/Processed/pd_curves_df_peninsula_edge.csv")
+
 # null PD curves for shading 
 max_len <- max(sapply(null_pd_curves_peninsula_edge, length))
 
@@ -336,10 +341,8 @@ null_pd_summary_peninsula_edge$step <- 1:nrow(null_pd_summary_peninsula_edge)
 write_csv(null_pd_summary_peninsula_edge,
           file = "Data/Processed/null_pd_curves_peninsula_edge.csv")
 
-# Subset of simulations to plot (25 sim)
-subset_columns <- c("step", paste0("Sim", sample(1:99, 99))) 
-
-subset_df_pen_edge <- null_pd_summary_peninsula_edge[, subset_columns]
+#reading
+null_pd_summary_peninsula_edge <- read_csv("Data/Processed/null_pd_curves_peninsula_edge.csv")
 
 # Reshape to long format for ggplot
 long_df_peninsula_edge <- null_pd_summary_peninsula_edge %>%
@@ -352,7 +355,7 @@ svg("Figures/Figure_Peninsula_PD_EDGE.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_peninsula_plot <- ggplot() +
+pd_peninsula_EDGE_plot <- ggplot() +
   # Shaded area for the range of null PD curves
   geom_line(data = long_df_peninsula_edge,
             aes(x = step, y = PD), color = "gray", 
@@ -364,13 +367,13 @@ pd_peninsula_plot <- ggplot() +
   labs(
     x = NULL,
     y = "Phylogenetic Diversity (PD)",
-    title = "Peninsula Phylogenetic Diversity loss",
-    subtitle = "Based on the metric EDGE"
+    #title = "Peninsula Phylogenetic Diversity loss",
+   title = "Based on the metric EDGE"
   ) +
   theme_classic() +
   mynamestheme
 
-pd_peninsula_plot
+pd_peninsula_EDGE_plot
 
 dev.off()
 
@@ -462,7 +465,11 @@ pd_curves_df_andalusia <- data.frame(
   step = 1:length(mean_pd_curve_andalusia),
   PD = mean_pd_curve_andalusia)
 
+#saving
 write_csv(pd_curves_df_andalusia, file = "Data/Processed/pd_curves_df_andalusia_pext.csv")
+
+#reading
+pd_curves_df_andalusia_pext <- read_csv("Data/Processed/pd_curves_df_andalusia_pext.csv")
 
 # null PD curves for shading 
 max_len <- max(sapply(null_pd_curves_andalusia, length))
@@ -483,8 +490,11 @@ null_pd_summary_andalusia$step <- 1:nrow(null_pd_summary_andalusia)
 write_csv(null_pd_summary_andalusia,
           file = "Data/Processed/null_pd_curves_andalusia_pext.csv")
 
+#reading
+null_pd_curves_andalusia_pext <- read_csv("Data/processed/null_pd_curves_andalusia_pext.csv")
+
 # Reshape to long format for ggplot
-long_df_andalusia <- null_pd_summary_andalusia %>%
+long_df_andalusia_pext <- null_pd_curves_andalusia_pext %>%
   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
 
 
@@ -494,25 +504,25 @@ svg("Figures/Figure_andalusia_PD_pext.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_andalusia_plot <- ggplot() +
+pd_andalusia_pext_plot <- ggplot() +
   # Shaded area for the range of null PD curves
-  geom_line(data = long_df_andalusia,
+  geom_line(data = long_df_andalusia_pext,
             aes(x = step, y = PD), color = "gray", 
             size = 0.5, alpha = 0.5) +
   # Observed mean PD curve
-  geom_line(data = pd_curves_df_andalusia,
+  geom_line(data = pd_curves_df_andalusia_pext,
             aes(x = step, y = PD), color = "orange", size = 1.2) +
   # Overlay some null PD curves for illustration
   labs(
-    x = NULL,
-    y = "Phylogenetic Diversity (PD)",
-    title = "Andalusia Phylogenetic Diversity loss",
-    subtitle = "Based on the prob. of extinction [EDGE2]"
+    x = "Removed Genera",
+    y = NULL,
+    #title = "Andalusia Phylogenetic Diversity loss",
+    title = "Extinction probability"
   ) +
   theme_classic() +
   mynamestheme
 
-pd_andalusia_plot
+pd_andalusia_pext_plot
 
 dev.off()
 
@@ -605,6 +615,9 @@ pd_curves_df_andalusia_edge <- data.frame(
 write_csv(pd_curves_df_andalusia_edge,
           file = "Data/Processed/pd_curves_df_andalusia_edge.csv")
 
+#reading
+pd_curved_df_andalusia_edge <- read_csv("Data/Processed/pd_curves_df_andalusia_edge.csv")
+
 # null PD curves for shading 
 max_len <- max(sapply(null_pd_curves_andalusia_edge, length))
 
@@ -624,6 +637,9 @@ null_pd_summary_andalusia_edge$step <- 1:nrow(null_pd_summary_andalusia_edge)
 write_csv(null_pd_summary_andalusia_edge,
           file = "Data/Processed/null_pd_curves_andalusia_edge.csv")
 
+##reading
+null_pd_summary_andalusia_edge <- read_csv("Data/Processed/null_pd_curves_andalusia_edge.csv")
+
 # Reshape to long format for ggplot
 long_df_andalusia_edge <- null_pd_summary_andalusia_edge %>%
   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
@@ -635,7 +651,7 @@ svg("Figures/Figure_andalusia_PD_EDGE.svg",
     width = 14/2.54,
     height = 11/2.54)
 
-pd_andalusia_plot <- ggplot() +
+pd_andalusia_EDGE_plot <- ggplot() +
   # Shaded area for the range of null PD curves
   geom_line(data = long_df_andalusia_edge,
             aes(x = step, y = PD), color = "gray", 
@@ -646,14 +662,13 @@ pd_andalusia_plot <- ggplot() +
   # Overlay some null PD curves for illustration
   labs(
     x = NULL,
-    y = "Phylogenetic Diversity (PD)",
-    title = "Andalusia Phylogenetic Diversity loss",
-    subtitle = "Based on the metric EDGE"
+    y = NULL,
+    title = "EDGE metric"
   ) +
   theme_classic() +
   mynamestheme
 
-pd_andalusia_plot
+pd_andalusia_EDGE_plot
 
 dev.off()
 
