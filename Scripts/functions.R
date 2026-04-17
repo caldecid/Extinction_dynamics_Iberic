@@ -44,6 +44,63 @@ calculate_PD_curve <- function(tree, df) {
   return(pd_curve)
 }
 
+
+### calculating PD curve loss at species level #########
+
+calculate_PD_curve_prop <- function(tree, df,
+                                    random_ties = TRUE) {
+  
+  require(dplyr)
+  require(ape)
+  
+  # Copy objects
+  tree_sim <- tree
+  df_sim <- df
+  
+  pd_curve <- c()
+  
+  # Loop until no genera left
+  while (nrow(df_sim) > 0) {
+    
+    # 1. Compute genus-level proportion threatened
+    genus_scores <- df_sim %>%
+      group_by(genus) %>%
+      summarise(proportion_threatened = first(proportion_threatened), 
+                .groups = "drop")
+    
+    # 2. Select genus with highest proportion
+    max_val <- max(genus_scores$proportion_threatened)
+    
+    candidates <- genus_scores$genus[
+      genus_scores$proportion_threatened == max_val
+    ]
+    
+    if (length(candidates) > 1 && random_ties) {
+      selected_genus <- sample(candidates, 1)
+    } else {
+      selected_genus <- candidates[1]
+    }
+    
+    # 3. Get species of that genus
+    species_to_remove <- df_sim$species[df_sim$genus == selected_genus]
+    
+    # 4. Prune from tree
+    tree_sim <- ape::drop.tip(tree_sim, species_to_remove)
+    
+    # 5. Calculate PD
+    pd_curve <- c(pd_curve, sum(tree_sim$edge.length))
+    
+    # 6. Update dataframe
+    df_sim <- df_sim[df_sim$genus != selected_genus, ]
+    
+    # Stop if tree empty
+    if (length(tree_sim$tip.label) == 0) break
+  }
+  
+  return(pd_curve)
+}
+
+
 ####### adapting the previous function for accepting EDGE2 metrics ########
 
 calculate_PD_curve_EDGE2 <- function(tree, df,
