@@ -1,11 +1,8 @@
 # Phylogenetic diversity loss analyses ------------------------------------
 
 # Load required packages
-library(ape)
 library(phytools)
-library(dplyr)
 library(purrr)
-library(ggplot2)
 library(tidyverse)
 library(patchwork)
 devtools::install_github("iramosgutierrez/rEDGE")

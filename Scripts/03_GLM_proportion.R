@@ -1,4 +1,4 @@
-# Threatened species vs predictors (GLM) -------------------------------------------------------------
+# Proportion of threatened species inside genera vs predictors (GLM) -----------
 
 ##Libraries
 library(tidyverse)
