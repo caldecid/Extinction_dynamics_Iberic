@@ -14,14 +14,17 @@ The repository is organized into **five main methodological sections**, each con
 ---
 
 ### 1. Species List and Extinction Risk Data  
-**Script:** `01_conservation_data.R`  
-Processes and formats extinction risk data for Peninsular Spain and Eastern Andalusia.
+- `01_conservation_data.R`: This script processes and formats data frames for further analyses from two plant extinction risk assessments corresponding to Peninsular Spain and Eastern Andalusia.
 
 ---
 
-### 2. Phylogenetic Analyses  
-**Scripts:** `02_phylo_manipulation.R` & `02.1_julia_ClaDS.jl`  
-Generates region-specific genus-level phylogenies by pruning and collapsing a global phylogeny. Calculates phylogenetic signal in threat proportions and derives four genus-level predictors: species richness, corrected taxon age, speciation rate (via ClaDS), and evolutionary distinctiveness.
+### 2. Phylogenetic Analyses and EDGE calculations 
+
+This section contains the scripts used to process phylogenetic data, estimate diversification dynamics and phylogenetic structure, and calculate EDGE2 metrics for the floras of Peninsular Spain and Eastern Andalusia. The resulting datasets constitute the main inputs for subsequent comparative and macroevolutionary analyses.
+
+- `02_phylo_manipulation.R`: Processes the global plant phylogeny to generate region-specific genus-level phylogenies through pruning and collapsing procedures. The script also calculates phylogenetic signal in extinction-risk proportions, estimates corrected taxon ages under three extinction scenarios, and produces the final data frames used in downstream analyses.
+- `02.1_julia_ClaDS.jl`: Estimates genus-level diversification rates from the global plant phylogeny using the ClaDS framework implemented in Julia.
+- `02.2_EDGE_metrics.R`: Applies the EDGE2 framework on extinction risk assessments and the prunned phylogenies to estimate extinction probabilities and evolutionary distinctiveness metrics for plant species in Peninsular Spain and Eastern Andalusia.
 
 ---
 
