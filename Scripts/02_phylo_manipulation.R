@@ -90,6 +90,9 @@ plant_ages_corrected <- bind_rows(list_ages_corrected,
 write_csv(plant_ages_corrected,
           file = "Data/Processed/plant_ages_corrected.csv")
 
+##reading
+plant_ages_corrected <- read_csv("Data/Processed/plant_ages_corrected.csv")
+
 
 # Peninsula ---------------------------------------------------------------
 
