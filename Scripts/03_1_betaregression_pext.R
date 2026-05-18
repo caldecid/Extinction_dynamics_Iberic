@@ -10,6 +10,8 @@ library(purrr)
 library(patchwork)
 library(betareg)
 library(performance)
+library(ggeffects)
+
 
 
 # Peninsula ---------------------------------------------------------------
@@ -336,3 +338,123 @@ r2(andalusia_pext_high_ages)
 ## measuring AIC
 AIC(andalusia_pext_high_full, andalusia_pext_high_rates, andalusia_pext_high_ages, andalusia_pext_high_null)
 ## best supported model was the andalusia_pext_high_ages
+
+
+
+# Plotting ----------------------------------------------------------------
+
+### theme
+my_theme <- theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_text(family = "serif",
+                             size = 10, color = "black"),
+    axis.title = element_text(family = "serif", size = 11),
+    strip.text = element_text(family = "serif", size = 11, face = "bold"),
+    plot.title = element_text(family = "serif", size = 12, face = "bold"),
+    legend.position = "none"
+  )
+
+# Predictions ---------------------------------------------------------
+
+# Peninsula
+pred_pen_low  <- ggpredict(pen_pext_low_ages,  terms = "mean_age")
+pred_pen_int  <- ggpredict(pen_pext_int_ages,  terms = "mean_age")
+pred_pen_high <- ggpredict(pen_pext_high_ages, terms = "mean_age")
+
+# Andalucía
+pred_and_low  <- ggpredict(andalusia_pext_low_ages,  terms = "mean_age")
+pred_and_int  <- ggpredict(andalusia_pext_int_ages,  terms = "mean_age")
+pred_and_high <- ggpredict(andalusia_pext_high_ages, terms = "mean_age")
+
+# Plot function -------------------------------------------------------
+
+plot_fun <- function(pred, rawdata, title_text, color){
+  
+  ggplot() +
+    
+    # Raw data
+    geom_point(data = rawdata,
+               aes(x = mean_age, y = mean_pext_adj),
+               alpha = 0.15,
+               size = 1,
+               color = "gray40") +
+    
+    # Confidence ribbon
+    geom_ribbon(data = pred,
+                aes(x = x,
+                    ymin = conf.low,
+                    ymax = conf.high),
+                fill = color,
+                alpha = 0.15,
+                color = NA) +
+    
+    # Prediction line
+    geom_line(data = pred,
+              aes(x = x, y = predicted),
+              color = color,
+              linewidth = 1.2) +
+    
+    labs(
+      x = "Genus age",
+      y = "Probability of extinction",
+      title = title_text
+    ) +
+    
+    coord_cartesian(ylim = c(0, 0.25)) +
+    
+    my_theme
+}
+
+# Peninsula plots -----------------------------------------------------
+
+p1 <- plot_fun(pred_pen_low,
+               peninsula_total_pext_low,
+               "Peninsula – Low",
+               color = "blue")
+
+p2 <- plot_fun(pred_pen_int,
+               peninsula_total_pext_int,
+               "Peninsula – Intermediate",
+               color = "blue")
+
+p3 <- plot_fun(pred_pen_high,
+               peninsula_total_pext_high,
+               "Peninsula – High",
+               color = "blue")
+
+# Andalusia plots -----------------------------------------------------
+
+p4 <- plot_fun(pred_and_low,
+               andalusia_total_pext_low,
+               "Andalusia – Low",
+               color = "red")
+
+p5 <- plot_fun(pred_and_int,
+               andalusia_total_pext_int,
+               "Andalusia – Intermediate",
+               color = "red")
+
+p6 <- plot_fun(pred_and_high,
+               andalusia_total_pext_high,
+               "Andalusia – High",
+               color = "red")
+
+# Combine plots -------------------------------------------------------
+
+final_plot <- (p1 | p2 | p3) /
+  (p4 | p5 | p6)
+
+# Show
+final_plot
+
+# Save publication-quality SVG ---------------------------------------
+
+#saving
+svg("Figures/Figure_betaregression.svg",
+    width = 24/2.54,   # convert cm → inches
+    height = 16/2.54)
+
+print(final_plot)
+
+dev.off()
