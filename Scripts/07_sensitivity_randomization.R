@@ -3,6 +3,7 @@
 ## Libraries
 library(tidyverse)
 library(readxl)
+library(writexl)
 library(phytools)
 library(remotes)
 library(SpeciesAge) #install_github("thauffe/SpeciesAge")
@@ -12,11 +13,13 @@ library(DescTools)
 library(gridExtra)
 library(purrr)
 library(broom)
+library(DescTools)
+library(glmmTMB) #for using betabinomial model for overdispersion
+library(DHARMa)
 
 
 
 # Peninsula  ----------------------------
-
 
 ## Iberic Peninsula data
 path <- "Data/Raw/Lista_Peninsula_Andalucia_Oriental_Final.xls"
@@ -106,6 +109,8 @@ for (i in 1:n_replicates) {
 #saving
 save(sensitivity_list_pen, file = "Data/Processed/Sensitivity/sensitivity_list_peninsula.RData")
 
+#loading
+load("Data/Processed/Sensitivity/sensitivity_list_peninsula.RData")
 
 ###########phylogenetic signal ##############
 
@@ -138,12 +143,6 @@ for (i in seq_len(100)) {
   
   names(threatened_vector) <- df_signal$Genus
   
-  # Skip if NA or length mismatch
- # if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
- #   K_pen_list[[i]] <- NA
- #   lambda_pen_list[[i]] <- NA
- #   next
- # }
   
   # Try-catch in case phylosig fails
   K_pen_list[[i]] <- tryCatch(
@@ -162,7 +161,7 @@ for (i in seq_len(100)) {
 
 ##converting to df
 
-#Blomberg
+###Blomberg
 K_pen_df <- purrr::map_dfr(K_pen_list, function(x) {
   if (is.list(x)) {
     tibble(K = x$K, P = x$P)
@@ -175,7 +174,11 @@ K_pen_df <- purrr::map_dfr(K_pen_list, function(x) {
 write_csv(K_pen_df,
           file = "Data/Processed/Sensitivity/Randomizations/K_pen_df.csv")
 
-#lambda
+#reading
+K_pen_df <- read_csv("Data/Processed/Sensitivity/Randomizations/K_pen_df.csv")
+
+
+###lambda
 lambda_pen_df <- purrr::map_dfr(lambda_pen_list, function(x) {
   if (is.list(x)) {
     tibble(lambda = x$lambda, logL = x$logL, P = x$P)
@@ -187,6 +190,9 @@ lambda_pen_df <- purrr::map_dfr(lambda_pen_list, function(x) {
 #saving
 write_csv(lambda_pen_df,
           file = "Data/Processed/Sensitivity/Randomizations/lambda_pen_df.csv")
+
+#reading
+lambda_pen_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_pen_df.csv")
 
 
 ###merging and plotting########
@@ -233,7 +239,7 @@ long_pen_signal <- phylo_signal_pen %>%
 # Define reference values from main analysis (DD and NE as Not Threatened)
 ref_main <- data.frame(
   Metric = c("Blomberg's K", "Pagel's λ"),
-  ref = c(0.02, 0.44)
+  ref = c(0.027, 0.195)
 )
 
 
@@ -242,7 +248,7 @@ ref_main <- data.frame(
 xlims <- tibble(
   Metric = c("Blomberg's K", "Pagel's λ"),
   xmin = c(0, 0),
-  xmax = c(0.05, 1)
+  xmax = c(0.05, 0.4)
 )
 
 # Merge with main data for facet-specific limits
@@ -268,7 +274,7 @@ ggplot(long_pen_signal, aes(x = Value)) +
              linetype = "dashed", size = 1.2, color = "red") +
   
   
-  labs(x = NULL, y = NULL, title = "Phylogenetic Signal across replicates\nin Peninsular Spain") +
+  labs(x = NULL, y = NULL, title = "Phylogenetic Signal in\n Peninsular Spain") +
   theme_minimal(base_size = 14) +
   mynamestheme+
   theme(
@@ -291,18 +297,19 @@ all_results <- list()
 for (scenario in ext_scenarios) {
   
   # Loop over replicates
-  for (i in seq_along(sensitivity_list)) {
+  for (i in seq_along(sensitivity_list_pen)) {
     
-    df <- sensitivity_list[[i]]
+    df <- sensitivity_list_pen[[i]]
     
     # Filter by extinction scenario
     df_sub <- df %>%
       filter(ext_fraction == scenario) 
     
     # Fit GLM, wrapped in try() to handle errors
-    model <- try(glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                     data = df_sub,
-                     family = quasibinomial()),
+    model <- try(glmmTMB(cbind(threatened_species,
+                               richness.x - threatened_species) ~ mean_age + rates,
+                         family = betabinomial(),
+                         data = df_sub),
                  silent = TRUE)
     
     # Skip model if error
@@ -312,7 +319,7 @@ for (scenario in ext_scenarios) {
     smry <- summary(model)
     
     # Extract coefficient table and convert to data.frame
-    coef_df <- as.data.frame(smry$coefficients)
+    coef_df <- as.data.frame(smry$coefficients$cond)
     coef_df$term <- rownames(coef_df)
     rownames(coef_df) <- NULL
     
@@ -326,10 +333,10 @@ for (scenario in ext_scenarios) {
 }
 
 ####GLM Summaries for each extinction scenarios
-glm_summary_df <- bind_rows(all_results)
+glm_summary_pen_df <- bind_rows(all_results)
 
 ##factors
-glm_summary_df$scenario <- factor(glm_summary_df$scenario,
+glm_summary_pen_df$scenario <- factor(glm_summary_pen_df$scenario,
                                   levels = c("low_ex",
                                              "int_ex",
                                              "high_ex"),
@@ -338,41 +345,40 @@ glm_summary_df$scenario <- factor(glm_summary_df$scenario,
                                              "High"),
                                   ordered = TRUE)
 
-glm_summary_df$term <- factor(glm_summary_df$term,
+glm_summary_pen_df$term <- factor(glm_summary_pen_df$term,
                               levels = c("(Intercept)",
-                                         "richness",
                                          "mean_age",
-                                         "mean_lambda"),
+                                         "rates"),
                               labels = c("Intercept",
-                                         "Richness",
                                          "Corrected age",
-                                         "lambda"),
+                                         "Diversification rates"),
                               ordered = TRUE)
 
 ##GLM stats
-glm_summary_stats <- glm_summary_df %>%
+glm_summary_pen_stats <- glm_summary_pen_df %>%
   group_by(term, scenario) %>%
   summarize(
     mean_estimate = mean(Estimate),
     sd_estimate = sd(Estimate),
     median_estimate = median(Estimate),
-    mean_p = mean(`Pr(>|t|)`, na.rm = TRUE),
-    prop_significant = mean(`Pr(>|t|)` < 0.05, na.rm = TRUE),
+    mean_p = mean(`Pr(>|z|)`, na.rm = TRUE),
+    prop_significant = mean(`Pr(>|z|)` < 0.05, na.rm = TRUE),
     .groups = "drop"
   )
 
 ##saving
-write_csv(glm_summary_stats, file = "Results/glm_sensitivity_Peninsula.csv")
+write_csv(glm_summary_pen_stats, file = "Results/glm_sensitivity_Peninsula.csv")
 
-write.xlsx(glm_summary_stats, file = "Results/glm_sensitivity_Peninsula_excel.xlsx" )
+write_xlsx(glm_summary_pen_stats, path = "Results/glm_sensitivity_Peninsula_excel.xlsx")
 
 
 ####plotting
-png("Figures/Supplementary/Sensitivity/Random_estimates_Peninsula.png", 
+png("Figures/Supplementary/Sensitivity/glm_random_estimates_Peninsula.png", 
     width = 20, height = 15,
     units = "cm", pointsize = 8, res = 300)
 
-##plotsglm_summary_df %>%
+##plots
+ glm_summary_pen_df %>%
   filter(term != "Intercept") %>%
   ggplot(aes(x = scenario, y = Estimate, fill = scenario)) +
   geom_boxplot() +
@@ -389,18 +395,19 @@ dev.off()
 
 
 ##proportion of significant terms
-png("Figures/Supplementary/Sensitivity/Random_prop_Peninsula.png", 
+png("Figures/Supplementary/Sensitivity/glm_random_pvalue_Peninsula.png", 
     width = 20, height = 15,
     units = "cm", pointsize = 8, res = 300)
 
-glm_summary_df %>%
+glm_summary_pen_df %>%
   filter(term != "Intercept") %>%
-  mutate(significant = `Pr(>|t|)` < 0.05) %>%
+  mutate(significant = `Pr(>|z|)` < 0.05) %>%
   group_by(term, scenario) %>%
   summarize(prop_sig = mean(significant), .groups = "drop") %>%
   ggplot(aes(x = scenario, y = prop_sig, fill = scenario)) +
   geom_col() +
   facet_wrap(~ term) +
+  ylim(0, 1)+
   theme_minimal(base_size = 14) +
   labs(y = "Proportion of Significant Results (p < 0.05)",
        x = "Extinction scenario",
@@ -418,17 +425,22 @@ andalucia <- read_excel(path,
                         sheet = "FLORANDOR")
 
 ##species age and speciation rates data
-andalucia_ages_rates <- read_csv("Data/Processed/Sensitivity/andalucia_merged_iucn_clads_ss.csv")
+andalucia_ages_rates <- read_csv("Data/Processed/andalucia_merged_iucn_clads.csv")
 
+#extracting variables
 andalucia_ages_rates <- andalucia_ages_rates %>% select(Genus, ext_fraction, mean_age,
-                                             mean_lambda)
+                                            richness, rates)
+
+### Ordering the conservation status for sensitivity analyses
+not_threatened_ss <- c("LC", "NT")
+threatened_ss <- c("DD", "NE", "VU", "EN", "CR", "EX", "RE", "EW")
+
 
 ##organizing threatening status
 andalucia_ss <- andalucia %>%
   mutate(
     Status = factor(
       Status,
-      labels = c(not_threatened_ss, threatened_ss[-c(2,7,8)]), #removing absent categories
       ordered = TRUE
     ),
     threat_category = case_when(
@@ -464,12 +476,12 @@ prop_not_threatened <- 1 - prop_threatened
 
 ##randomizing the DD and NE species
 n_replicates <- 100
-sensitivity_list <- vector("list", n_replicates)
+sensitivity_list_andalucia <- vector("list", n_replicates)
 
 set.seed(42)
 
 for (i in 1:n_replicates) {
-  sensitivity_list[[i]] <- andalucia_ss %>%
+  sensitivity_list_andalucia[[i]] <- andalucia_ss %>%
     mutate(threat_category_adjusted = threat_category) %>%
     mutate(threat_category_adjusted = ifelse(
       Status %in% c("DD", "NE"),
@@ -491,10 +503,11 @@ for (i in 1:n_replicates) {
 #########phylogenetic signal ###################
 
 ##calling genus tree
-andalucia_genus_phylo <- read.tree("Results/andalucia_genus_phylo.tre")
+# Load the genus_phylo obtained from 02_phylo_manipulation 
+load("Data/Processed/plant_genus_phylo.RData")
 
 # Create a vector of tip labels once
-tip_labels <- andalucia_genus_phylo$tip.label
+tip_labels <- genus_phylo$tip.label
 
 # Initialize result lists
 K_and_list <- vector("list", length = 100)
@@ -504,28 +517,31 @@ lambda_and_list <- vector("list", length = 100)
 for (i in seq_len(100)) {
   message("Processing replicate ", i)
   
-  df <- sensitivity_list[[i]] %>%
+  df <- sensitivity_list_andalucia[[i]] %>%
     dplyr::filter(ext_fraction == "low_ex") 
   
-  df <- df[match(tip_labels, df$Genus), ]
-  threatened_vector <- setNames(df$proportion_threatened, df$Genus)
+  ##filtering data
+  df_signal <- df[df$Genus %in% genus_phylo$tip.label, ]
   
-  # Skip if NA or length mismatch
-  if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
-    K_pen_list[[i]] <- NA
-    lambda_pen_list[[i]] <- NA
-    next
-  }
+  # reorder data
+  df_signal <- df_signal[match(genus_phylo$tip.label,
+                               df_signal$Genus), ]
+  
+  # extracting the proportion of threatened species
+  threatened_vector <- df_signal$proportion_threatened
+  
+  names(threatened_vector) <- df_signal$Genus
+  
   
   # Try-catch in case phylosig fails
   K_and_list[[i]] <- tryCatch(
-    phylosig(andalucia_genus_phylo, 
+    phylosig(genus_phylo, 
              threatened_vector, nsim = 100, test = TRUE, method = "K"),
     error = function(e) NA
   )
   
   lambda_and_list[[i]] <- tryCatch(
-    phylosig(andalucia_genus_phylo, 
+    phylosig(genus_phylo, 
              threatened_vector, nsim = 100, test = TRUE, method = "lambda"),
     error = function(e) NA
   )
@@ -610,9 +626,9 @@ long_and_signal <- phylo_signal_and %>%
                          lambda = "Pagel's λ"))
 
 # Define reference values from main analysis (DD and NE as Not Threatened)
-ref_main <- data.frame(
+ref_main_and <- data.frame(
   Metric = c("Blomberg's K", "Pagel's λ"),
-  ref = c(0.015, 7.331374e-05)
+  ref = c(0.043, 0.403)
 )
 
 
@@ -627,12 +643,12 @@ ggplot(long_and_signal, aes(x = Value)) +
   
   
   # Main analysis vertical line (red, dashed)
-  geom_vline(data = ref_main, aes(xintercept = ref), 
+  geom_vline(data = ref_main_and, aes(xintercept = ref), 
              linetype = "dashed", size = 1.2, color = "red") +
   
   
   labs(x = NULL, y = NULL, 
-       title = "Phylogenetic Signal across replicates\nin Eastern Andalusia") +
+       title = "Phylogenetic Signal in\n Eastern Andalusia") +
   theme_minimal(base_size = 14) +
   mynamestheme+
   theme(
@@ -650,25 +666,25 @@ dev.off()
 ext_scenarios <- c("low_ex", "int_ex", "high_ex")
 
 # Initialize empty list to collect results
-all_results <- list()
+all_results_andalucia <- list()
 
 # Loop over scenarios
 for (scenario in ext_scenarios) {
   
   # Loop over replicates
-  for (i in seq_along(sensitivity_list)) {
+  for (i in seq_along(sensitivity_list_andalucia)) {
     
-    df <- sensitivity_list[[i]]
+    df <- sensitivity_list_andalucia[[i]]
     
     # Filter by extinction scenario
     df_sub <- df %>%
       filter(ext_fraction == scenario) 
     
-    # Fit GLM, wrapped in try() to handle errors
-    model <- try(glm(proportion_threatened ~ richness + mean_age + mean_lambda,
-                     data = df_sub,
-                     family = quasibinomial()),
-                 silent = TRUE)
+    model <- try(glmmTMB(cbind(threatened_species,
+                      richness.x - threatened_species) ~ mean_age + rates,
+                family = betabinomial(),
+                data = df_sub),
+                silent = TRUE)
     
     # Skip model if error
     if (inherits(model, "try-error")) next
@@ -677,7 +693,7 @@ for (scenario in ext_scenarios) {
     smry <- summary(model)
     
     # Extract coefficient table and convert to data.frame
-    coef_df <- as.data.frame(smry$coefficients)
+    coef_df <- as.data.frame(smry$coefficients$cond)
     coef_df$term <- rownames(coef_df)
     rownames(coef_df) <- NULL
     
@@ -686,12 +702,12 @@ for (scenario in ext_scenarios) {
     coef_df$scenario <- scenario
     
     # Append to results list
-    all_results[[length(all_results) + 1]] <- coef_df
+    all_results_andalucia[[length(all_results_andalucia) + 1]] <- coef_df
   }
 }
 
 ####GLM Summaries for each extinction scenarios
-glm_summary_df_andalucia <- bind_rows(all_results)
+glm_summary_df_andalucia <- bind_rows(all_results_andalucia)
 
 ##factors
 glm_summary_df_andalucia$scenario <- factor(glm_summary_df_andalucia$scenario,
@@ -705,13 +721,13 @@ glm_summary_df_andalucia$scenario <- factor(glm_summary_df_andalucia$scenario,
 
 glm_summary_df_andalucia$term <- factor(glm_summary_df_andalucia$term,
                               levels = c("(Intercept)",
-                                         "richness",
+                                         
                                          "mean_age",
-                                         "mean_lambda"),
+                                         "rates"),
                               labels = c("Intercept",
-                                         "Richness",
+                                         
                                          "Corrected age",
-                                         "lambda"),
+                                         "Diversification rates"),
                               ordered = TRUE)
 
 ##GLM stats
@@ -721,8 +737,8 @@ glm_summary_stats_andalucia <- glm_summary_df_andalucia %>%
     mean_estimate = mean(Estimate),
     sd_estimate = sd(Estimate),
     median_estimate = median(Estimate),
-    mean_p = mean(`Pr(>|t|)`, na.rm = TRUE),
-    prop_significant = mean(`Pr(>|t|)` < 0.05, na.rm = TRUE),
+    mean_p = mean(`Pr(>|z|)`, na.rm = TRUE),
+    prop_significant = mean(`Pr(>|z|)` < 0.05, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -730,12 +746,12 @@ glm_summary_stats_andalucia <- glm_summary_df_andalucia %>%
 write_csv(glm_summary_stats_andalucia, 
           file = "Results/glm_sensitivity_andalucia.csv")
 
-write.xlsx(glm_summary_stats_andalucia, 
-           file = "Results/glm_sensitivity_andalucia_excel.xlsx")
+write_xlsx(glm_summary_stats_andalucia, 
+           path = "Results/glm_sensitivity_andalucia_excel.xlsx")
 
 
 ####plotting
-png("Figures/Supplementary/Sensitivity/Random_estimates_andalucia.png", 
+png("Figures/Supplementary/Sensitivity/glm_random_estimates_andalucia.png", 
     width = 20, height = 15,
     units = "cm", pointsize = 8, res = 300)
 
@@ -757,15 +773,15 @@ dev.off()
 
 
 ##proportion of significant terms
-png("Figures/Supplementary/Sensitivity/Random_prop_Andalusia.png", 
+png("Figures/Supplementary/Sensitivity/glm_random_significant_Andalusia.png", 
     width = 20, height = 15,
     units = "cm", pointsize = 8, res = 300)
 
 glm_summary_df_andalucia %>%
   filter(term != "Intercept") %>%
-  mutate(significant = `Pr(>|t|)` < 0.05) %>%
+  mutate(significant = `Pr(>|z|)` < 0.05) %>%
   group_by(term, scenario) %>%
-  summarize(prop_sig = mean(significant), .groups = "drop") %>%
+  summarize(prop_sig = mean(significant), .groups = "drop") %>% 
   ggplot(aes(x = scenario, y = prop_sig, fill = scenario)) +
   geom_col() +
   facet_wrap(~ term) +
@@ -778,3 +794,8 @@ glm_summary_df_andalucia %>%
   theme(legend.position = "none")
 
 dev.off()
+
+
+# Probability of extinction -----------------------------------------------
+
+
