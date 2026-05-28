@@ -1,6 +1,4 @@
-
-# Randomization of DD and NE according to proportions --------------------------
-
+# Randomization of DD and NE for Sensitivity analyses --------------------------
 
 ## Libraries
 library(tidyverse)
@@ -25,18 +23,20 @@ path <- "Data/Raw/Lista_Peninsula_Andalucia_Oriental_Final.xls"
 excel_sheets(path)
 
 peninsula <- read_excel(path,
-                        sheet = "Lista_Peninsula_Final.txt" )
+                        sheet = "Lista_Peninsula_Final.txt")
 
 ##species age and speciation rates data
-pen_ages_rates <- read_csv("Data/Processed/Sensitivity/peninsula_merged_iucn_clads_ss.csv")
+pen_ages_rates <- read_csv("Data/Processed/peninsula_merged_iucn_clads.csv")
 
+#extracting variables
 pen_ages_rates <- pen_ages_rates %>% select(Genus, ext_fraction, mean_age,
-                                            richness, mean_lambda)
+                                            richness, rates)
 
 ### Ordering the conservation status for sensitivity analyses
 not_threatened_ss <- c("LC", "NT")
 threatened_ss <- c("DD", "NE", "VU", "EN", "CR", "EX", "RE", "EW")
 
+#defining status and threat category
 peninsula_ss <- peninsula %>%
   mutate(
     Status = factor(
@@ -50,7 +50,7 @@ peninsula_ss <- peninsula %>%
     )
   )
 
-#factos
+#facts
 peninsula_ss$threat_category <- factor(peninsula_ss$threat_category)
 
 peninsula_ss$Status <- factor(peninsula_ss$Status)
@@ -61,6 +61,13 @@ peninsula_ss <- peninsula_ss %>%
   separate(col = Species, into = c("Genus", "Epithet"), sep = " ",
            extra = "merge")
 
+### Determining the peninsula genus df
+peninsula_genus <- peninsula_ss %>% group_by(Genus) %>%
+  summarize(
+    richness = n(),
+    threatened_species = sum(threat_category == "threatened"),
+    proportion_threatened = threatened_species / richness
+  )
 
 # Filter out NE and DD to calculate proportions
 peninsula_assessed <- peninsula_ss %>%
@@ -73,12 +80,12 @@ prop_not_threatened <- 1 - prop_threatened
 
 ##randomizing the DD and NE species
 n_replicates <- 100
-sensitivity_list <- vector("list", n_replicates)
+sensitivity_list_pen <- vector("list", n_replicates)
 
 set.seed(42)
 
 for (i in 1:n_replicates) {
-  sensitivity_list[[i]] <- peninsula_ss %>%
+  sensitivity_list_pen[[i]] <- peninsula_ss %>%
     mutate(threat_category_adjusted = threat_category) %>%
     mutate(threat_category_adjusted = ifelse(
       Status %in% c("DD", "NE"),
@@ -91,18 +98,22 @@ for (i in 1:n_replicates) {
       threatened_species = sum(threat_category_adjusted == "threatened"),
       proportion_threatened = threatened_species / richness
     ) %>% 
-    left_join(peninsula_ages_rates, #merging ages and speciation rates
+    left_join(pen_ages_rates, #merging ages and speciation rates
               by = "Genus") %>% 
-      drop_na(ext_fraction)
+    drop_na(ext_fraction)
 }
+
+#saving
+save(sensitivity_list_pen, file = "Data/Processed/Sensitivity/sensitivity_list_peninsula.RData")
+
 
 ###########phylogenetic signal ##############
 
-# Load the genus tree once
-peninsula_genus_phylo <- read.tree("Results/peninsula_genus_phylo.tre")
+# Load the genus_phylo obtained from 02_phylo_manipulation 
+load("Data/Processed/plant_genus_phylo.RData")
 
 # Create a vector of tip labels once
-tip_labels <- peninsula_genus_phylo$tip.label
+tip_labels <- genus_phylo$tip.label
 
 # Initialize result lists
 K_pen_list <- vector("list", length = 100)
@@ -112,32 +123,42 @@ lambda_pen_list <- vector("list", length = 100)
 for (i in seq_len(100)) {
   message("Processing replicate ", i)
   
-  df <- sensitivity_list[[i]] %>%
+  df <- sensitivity_list_pen[[i]] %>%
     dplyr::filter(ext_fraction == "low_ex") 
   
-  df <- df[match(tip_labels, df$Genus), ]
-  threatened_vector <- setNames(df$proportion_threatened, df$Genus)
+  ##filtering data
+  df_signal <- df[df$Genus %in% genus_phylo$tip.label, ]
+  
+  # reorder data
+  df_signal <- df_signal[match(genus_phylo$tip.label,
+                                            df_signal$Genus), ]
+  
+  # extracting the proportion of threatened species
+  threatened_vector <- df_signal$proportion_threatened
+  
+  names(threatened_vector) <- df_signal$Genus
   
   # Skip if NA or length mismatch
-  if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
-    K_pen_list[[i]] <- NA
-    lambda_pen_list[[i]] <- NA
-    next
-  }
+ # if (any(is.na(threatened_vector)) || length(threatened_vector) != length(tip_labels)) {
+ #   K_pen_list[[i]] <- NA
+ #   lambda_pen_list[[i]] <- NA
+ #   next
+ # }
   
   # Try-catch in case phylosig fails
   K_pen_list[[i]] <- tryCatch(
-    phylosig(peninsula_genus_phylo, 
+    phylosig(genus_phylo, 
              threatened_vector, nsim = 100, test = TRUE, method = "K"),
     error = function(e) NA
   )
   
   lambda_pen_list[[i]] <- tryCatch(
-    phylosig(peninsula_genus_phylo, 
+    phylosig(genus_phylo, 
              threatened_vector, nsim = 100, test = TRUE, method = "lambda"),
     error = function(e) NA
   )
 }
+
 
 ##converting to df
 
