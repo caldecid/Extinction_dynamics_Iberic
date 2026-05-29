@@ -16,6 +16,7 @@ library(broom)
 library(DescTools)
 library(glmmTMB) #for using betabinomial model for overdispersion
 library(DHARMa)
+library(rEDGE)
 
 
 
@@ -112,7 +113,7 @@ save(sensitivity_list_pen, file = "Data/Processed/Sensitivity/sensitivity_list_p
 #loading
 load("Data/Processed/Sensitivity/sensitivity_list_peninsula.RData")
 
-###########phylogenetic signal ##############
+###phylogenetic signal
 
 # Load the genus_phylo obtained from 02_phylo_manipulation 
 load("Data/Processed/plant_genus_phylo.RData")
@@ -195,7 +196,7 @@ write_csv(lambda_pen_df,
 lambda_pen_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_pen_df.csv")
 
 
-###merging and plotting########
+###merging and plotting
 phylo_signal_pen <- dplyr::left_join(K_pen_df, lambda_pen_df,
                                      by = "replicate") %>% 
                    rename(p_value_K = P.x,
@@ -285,7 +286,7 @@ ggplot(long_pen_signal, aes(x = Value)) +
 dev.off()
 
 
-####### fitting the glm ####################
+## fitting the glm 
 
 # List of extinction scenarios
 ext_scenarios <- c("low_ex", "int_ex", "high_ex")
@@ -500,7 +501,12 @@ for (i in 1:n_replicates) {
     drop_na(ext_fraction)
 }
 
-#########phylogenetic signal ###################
+##saving
+save(sensitivity_list_andalucia, file = "Data/Processed/Sensitivity/sensitivity_list_andalucia.RData")
+## loading
+load("Data/Processed/Sensitivity/sensitivity_list_andalucia.RData")
+
+##phylogenetic signal
 
 ##calling genus tree
 # Load the genus_phylo obtained from 02_phylo_manipulation 
@@ -660,7 +666,7 @@ ggplot(long_and_signal, aes(x = Value)) +
 
 dev.off()
 
-###### fitting the glm ############
+###### fitting the glm 
 
 # List of extinction scenarios
 ext_scenarios <- c("low_ex", "int_ex", "high_ex")
@@ -798,4 +804,320 @@ dev.off()
 
 # Probability of extinction -----------------------------------------------
 
+### Reading mega plant phylogeny
+plant_phylo <- read.tree("Data/Raw/PhytoPhylo.tre")
+
+############### Peninsula #################################
+
+#reading peninsula iucn data
+peninsula_iucn <- read_csv("Data/Processed/peninsula_iucn.csv") 
+
+#unifying species name
+peninsula_iucn$species <- str_replace_all(peninsula_iucn$species, " ", "_")
+
+##matching names
+common_species_pen <- intersect(plant_phylo$tip.label, peninsula_iucn$species)
+
+##prunning branches
+peninsula_phylo <- keep.tip(plant_phylo, tip = common_species_pen)
+
+# saving and reading the phylogeny as ape format
+peninsula_phylo <- read.tree(text = write.tree(peninsula_phylo))
+
+#forcing ultrametric
+peninsula_phylo <- force.ultrametric(peninsula_phylo)
+
+#fully bifurcating
+peninsula_phylo <- multi2di(peninsula_phylo)
+
+#reordering 
+peninsula_phylo <- reorder.phylo(peninsula_phylo, order = "cladewise")
+
+## determining proportions as probabilities for the randomization
+
+#removing DD and NE for obtaining proportions
+peninsula_iucn_ss <- peninsula_iucn %>% filter(Status != c("DD", "NE"))
+
+prop_threatened <- mean(peninsula_iucn_ss$threat_category == "threatened")
+prop_not_threatened <- 1 - prop_threatened
+
+
+##randomizing the DD and NE species
+n_replicates <- 100
+sensitivity_list_pen_EDGE <- vector("list", n_replicates)
+
+set.seed(42)
+
+##Implementing EDGE across the randomizations
+for (i in 1:n_replicates) {
+  pen_ss <- peninsula_iucn %>%
+    mutate(Status_adjusted = Status)
+  
+  dd_ne <- pen_ss$Status %in% c("DD", "NE")
+  
+  pen_ss$Status_adjusted[dd_ne] <- sample(
+    c("VU", "LC"),
+    size = sum(dd_ne),
+    replace = TRUE,
+    prob = c(prop_threatened, prop_not_threatened))
+  
+  pen_ss <- pen_ss %>%
+    select(species, Status_adjusted) %>% 
+      rename(RL.cat = Status_adjusted) %>% 
+      filter(species %in% common_species_pen)
+    
+    ## Regionally extinct as Extinct
+    pen_ss$RL.cat[pen_ss$RL.cat == "RE"] <- "EX"
+    
+    pen_ss_clean <- data.frame(
+      species = as.character(pen_ss$species),
+      RL.cat  = as.character(pen_ss$RL.cat))
+    
+    #### applying EDGE2
+    sensitivity_list_pen_EDGE[[i]] <- calculate_EDGE2(tree = peninsula_phylo,
+                                       table = pen_ss_clean,
+                                       verbose = FALSE)
+    
+}
+
+#saving
+save(sensitivity_list_pen_EDGE, file = "Data/Processed/Sensitivity/sensitivity_list_peninsula_EDGE.RData")
+
+#loading
+load("Data/Processed/Sensitivity/sensitivity_list_peninsula_EDGE.RData")
+
+###########phylogenetic signal ##############
+
+# Initialize result lists
+K_pen_EDGE_list <- vector("list", length = 100)
+lambda_pen_EDGE_list <- vector("list", length = 100)
+
+# Start loop for measuring phylo signal
+for (i in seq_len(100)) {
+  message("Processing replicate ", i)
+  
+  df <- sensitivity_list_pen_EDGE[[i]]
+  
+  ##filtering data
+  df_signal <- df[df$species %in% peninsula_phylo$tip.label, ]
+  
+  # reorder data
+  df_signal <- df_signal[match(peninsula_phylo$tip.label,
+                               df_signal$species), ]
+  
+  # extracting the probability of extinction
+  pext_vector <- df_signal$pext
+  
+  names(pext_vector) <- df_signal$species
+  
+  
+  # Try-catch in case phylosig fails
+  K_pen_EDGE_list[[i]] <- tryCatch(
+    phylosig(peninsula_phylo, 
+             pext_vector, nsim = 100, test = TRUE, method = "K"),
+    error = function(e) NA
+  )
+  
+  lambda_pen_EDGE_list[[i]] <- tryCatch(
+    phylosig(peninsula_phylo, 
+             pext_vector, nsim = 100, test = TRUE, method = "lambda"),
+    error = function(e) NA
+  )
+}
+
+
+##converting to df
+
+###Blomberg
+K_pen_EDGE_df <- purrr::map_dfr(K_pen_EDGE_list, function(x) {
+  if (is.list(x)) {
+    tibble(K = x$K, P = x$P)
+  } else {
+    tibble(K = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(K_pen_EDGE_df,
+          file = "Data/Processed/Sensitivity/Randomizations/K_pen_EDGE_df.csv")
+
+#reading
+K_pen_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/K_pen_EDGE_df.csv")
+
+
+###lambda
+lambda_pen_EDGE_df <- purrr::map_dfr(lambda_pen_EDGE_list, function(x) {
+  if (is.list(x)) {
+    tibble(lambda = x$lambda, logL = x$logL, P = x$P)
+  } else {
+    tibble(lambda = NA, logL = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(lambda_pen_EDGE_df,
+          file = "Data/Processed/Sensitivity/Randomizations/lambda_pen_EDGE_df.csv")
+
+#reading
+lambda_pen_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_pen_EDGE_df.csv")
+
+
+
+############### Andalusia ########################
+
+## reading Andalusia IUCN data
+andalusia_iucn <- read_csv("Data/Processed/andalucia_iucn.csv")
+
+#unifying species name
+andalusia_iucn$species <- str_replace_all(andalusia_iucn$species, " ", "_")
+
+##matching names
+common_species_andalusia <- intersect(plant_phylo$tip.label, andalusia_iucn$species)
+
+##prunning branches
+andalusia_phylo <- keep.tip(plant_phylo, tip = common_species_and)
+
+# saving and reading the phylogeny as ape format
+andalusia_phylo <- read.tree(text = write.tree(andalusia_phylo))
+
+#forcing ultrametric
+andalusia_phylo <- force.ultrametric(andalusia_phylo)
+
+#fully bifurcating
+andalusia_phylo <- multi2di(andalusia_phylo)
+
+#reordering 
+andalusia_phylo <- reorder.phylo(andalusia_phylo, order = "cladewise")
+
+## determining proportions as probabilities for the randomization
+
+#removing DD and NE for obtaining proportions
+andalusia_iucn_ss <- andalusia_iucn %>% filter(Status != c("DD", "NE"))
+
+prop_threatened <- mean(andalusia_iucn_ss$threat_category == "threatened")
+prop_not_threatened <- 1 - prop_threatened
+
+
+##randomizing the DD and NE species
+n_replicates <- 100
+sensitivity_list_andalusia_EDGE <- vector("list", n_replicates)
+
+set.seed(42)
+
+##Implementing EDGE across the randomizations
+for (i in 1:n_replicates) {
+  andalusia_ss <- andalusia_iucn %>%
+    mutate(Status_adjusted = Status)
+  
+  dd_ne <- andalusia_ss$Status %in% c("DD", "NE")
+  
+  andalusia_ss$Status_adjusted[dd_ne] <- sample(
+    c("VU", "LC"),
+    size = sum(dd_ne),
+    replace = TRUE,
+    prob = c(prop_threatened, prop_not_threatened))
+  
+  andalusia_ss <- andalusia_ss %>%
+    select(species, Status_adjusted) %>% 
+    rename(RL.cat = Status_adjusted) %>% 
+    filter(species %in% common_species_andalusia)
+  
+  ## Regionally extinct as Extinct
+  andalusia_ss$RL.cat[andalusia_ss$RL.cat == "RE"] <- "EX"
+  
+  andalusia_ss_clean <- data.frame(
+    species = as.character(andalusia_ss$species),
+    RL.cat  = as.character(andalusia_ss$RL.cat))
+  
+  ##there are some duplicated species
+  andalusia_ss_clean <- andalusia_ss_clean[
+    !duplicated(andalusia_ss_clean$species), ]
+  
+  #### applying EDGE2
+  sensitivity_list_andalusia_EDGE[[i]] <- calculate_EDGE2(tree = andalusia_phylo,
+                                                    table = andalusia_ss_clean,
+                                                    verbose = FALSE)
+  
+}
+
+#saving
+save(sensitivity_list_andalusia_EDGE, file = "Data/Processed/Sensitivity/sensitivity_list_andalusia_EDGE.RData")
+
+#loading
+load("Data/Processed/Sensitivity/sensitivity_list_andalusia_EDGE.RData")
+
+###########phylogenetic signal ##############
+
+# Initialize result lists
+K_andalusia_EDGE_list <- vector("list", length = 100)
+lambda_andalusia_EDGE_list <- vector("list", length = 100)
+
+# Start loop for measuring phylo signal
+for (i in seq_len(100)) {
+  message("Processing replicate ", i)
+  
+  df <- sensitivity_list_andalusia_EDGE[[i]]
+  
+  ##filtering data
+  df_signal <- df[df$species %in% andalusia_phylo$tip.label, ]
+  
+  # reorder data
+  df_signal <- df_signal[match(andalusia_phylo$tip.label,
+                               df_signal$species), ]
+  
+  # extracting the probability of extinction
+  pext_vector <- df_signal$pext
+  
+  names(pext_vector) <- df_signal$species
+  
+  
+  # Try-catch in case phylosig fails
+  K_andalusia_EDGE_list[[i]] <- tryCatch(
+    phylosig(andalusia_phylo, 
+             pext_vector, nsim = 100, test = TRUE, method = "K"),
+    error = function(e) NA
+  )
+  
+  lambda_andalusia_EDGE_list[[i]] <- tryCatch(
+    phylosig(andalusia_phylo, 
+             pext_vector, nsim = 100, test = TRUE, method = "lambda"),
+    error = function(e) NA
+  )
+}
+
+
+##converting to df
+
+###Blomberg
+K_andalusia_EDGE_df <- purrr::map_dfr(K_andalusia_EDGE_list, function(x) {
+  if (is.list(x)) {
+    tibble(K = x$K, P = x$P)
+  } else {
+    tibble(K = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(K_andalusia_EDGE_df,
+          file = "Data/Processed/Sensitivity/Randomizations/K_andalusia_EDGE_df.csv")
+
+#reading
+K_andalusia_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/K_andalusia_EDGE_df.csv")
+
+
+###lambda
+lambda_andalusia_EDGE_df <- purrr::map_dfr(lambda_andalusia_EDGE_list, function(x) {
+  if (is.list(x)) {
+    tibble(lambda = x$lambda, logL = x$logL, P = x$P)
+  } else {
+    tibble(lambda = NA, logL = NA, P = NA)
+  }
+}, .id = "replicate")
+
+#saving
+write_csv(lambda_andalusia_EDGE_df,
+          file = "Data/Processed/Sensitivity/Randomizations/lambda_andalusia_EDGE_df.csv")
+
+#reading
+lambda_andalusia_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_andalusia_EDGE_df.csv")
 
