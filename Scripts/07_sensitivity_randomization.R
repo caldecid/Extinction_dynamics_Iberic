@@ -206,6 +206,9 @@ phylo_signal_pen <- dplyr::left_join(K_pen_df, lambda_pen_df,
 #saving 
 write_csv(phylo_signal_pen, "Results/phylo_signal_peninsula_random.csv")
 
+#reading
+phylo_signal_pen <- read_csv("Results/phylo_signal_peninsula_random.csv")
+
 
 ##summarising
 phylo_signal_pen_summary <- phylo_signal_pen %>%
@@ -249,7 +252,7 @@ ref_main <- data.frame(
 xlims <- tibble(
   Metric = c("Blomberg's K", "Pagel's λ"),
   xmin = c(0, 0),
-  xmax = c(0.05, 0.4)
+  xmax = c(0.04, 0.3)
 )
 
 # Merge with main data for facet-specific limits
@@ -275,7 +278,7 @@ ggplot(long_pen_signal, aes(x = Value)) +
              linetype = "dashed", size = 1.2, color = "red") +
   
   
-  labs(x = NULL, y = NULL, title = "Phylogenetic Signal in\n Peninsular Spain") +
+  labs(x = NULL, y = NULL, title = "Phylogenetic Signal in Prop. of threatened sp.\n Peninsular Spain") +
   theme_minimal(base_size = 14) +
   mynamestheme+
   theme(
@@ -385,7 +388,8 @@ png("Figures/Supplementary/Sensitivity/glm_random_estimates_Peninsula.png",
   geom_boxplot() +
   facet_wrap(~ term, scales = "free_y") +
   theme_minimal(base_size = 14) +
-  labs(title = "Random assignment of DD & NE sp. [Peninsular Spain]",
+  labs(title = "GLM [Peninsular Spain]",
+       subtitle = "Random assignment of DD & NE sp.",
        y = "Estimate of GLM Coefficients", x = "Extinction Scenario") +
   scale_fill_brewer(palette = "Set2")+
   mynamestheme+
@@ -412,7 +416,8 @@ glm_summary_pen_df %>%
   theme_minimal(base_size = 14) +
   labs(y = "Proportion of Significant Results (p < 0.05)",
        x = "Extinction scenario",
-       title = "Random assignment of DD & NE sp. [Peninsular Spain]") +
+       title = "GLM [Peninsular Spain]",
+       subtitle = "Random assignment of DD & NE sp.") +
   scale_fill_brewer(palette = "Set2") +
   mynamestheme+
   theme(legend.position = "none")
@@ -591,6 +596,9 @@ phylo_signal_and <- dplyr::left_join(K_and_df, lambda_and_df,
 #saving 
 write_csv(phylo_signal_and, "Results/phylo_signal_andalucia_random.csv")
 
+#reading
+phylo_signal_and <- read_csv("Results/phylo_signal_andalucia_random.csv")
+
 
 ##summarising
 phylo_signal_and_summary <- phylo_signal_and %>%
@@ -654,9 +662,9 @@ ggplot(long_and_signal, aes(x = Value)) +
   
   
   labs(x = NULL, y = NULL, 
-       title = "Phylogenetic Signal in\n Eastern Andalusia") +
+       title = "Phylogenetic Signal in Prop. of threatened sp.\n Eastern Andalusia") +
   theme_minimal(base_size = 14) +
-  mynamestheme+
+  mynamestheme +
   theme(
     strip.text = element_text(size = 14),
     plot.title = element_text(size = 15)
@@ -686,7 +694,7 @@ for (scenario in ext_scenarios) {
     df_sub <- df %>%
       filter(ext_fraction == scenario) 
     
-    model <- try(glmmTMB(cbind(threatened_species,
+    model <- try(glmmTMB::glmmTMB(cbind(threatened_species,
                       richness.x - threatened_species) ~ mean_age + rates,
                 family = betabinomial(),
                 data = df_sub),
@@ -768,8 +776,9 @@ filter(term != "Intercept") %>%
   geom_boxplot() +
   facet_wrap(~ term, scales = "free_y") +
   theme_minimal(base_size = 14) +
-  labs(title = "Random assignment of DD & NE sp. [Eastern Andalusia]",
-       y = "Estimate of GLM Coefficients", x = "Extinction Scenario") +
+  labs( title = "GLM [Eastern Andalusia]",
+        subtitle = "Random assignment of DD & NE sp.",
+       y = "Coefficients", x = "Extinction Scenario") +
   scale_fill_brewer(palette = "Set2")+
   mynamestheme+
   theme(legend.position = "none")
@@ -792,9 +801,10 @@ glm_summary_df_andalucia %>%
   geom_col() +
   facet_wrap(~ term) +
   theme_minimal(base_size = 14) +
-  labs(y = "Proportion of Significant Results (p < 0.05)",
+  labs(y = "Prop. of Significant Results (p < 0.05)",
        x = "Extinction scenario",
-       title = "Random assignment of DD & NE sp. [Eastern Andalusia]") +
+       title = "GLM [Eastern Andalusia]",
+       subtitle = "Random assignment of DD & NE sp.") +
   scale_fill_brewer(palette = "Set2") +
   mynamestheme+
   theme(legend.position = "none")
@@ -888,43 +898,59 @@ load("Data/Processed/Sensitivity/sensitivity_list_peninsula_EDGE.RData")
 
 ###########phylogenetic signal ##############
 
+#############################################
+###     using a server for parallel #########
+###              processing         #########
+#############################################
+
 # Initialize result lists
 K_pen_EDGE_list <- vector("list", length = 100)
 lambda_pen_EDGE_list <- vector("list", length = 100)
 
-# Start loop for measuring phylo signal
-for (i in seq_len(100)) {
-  message("Processing replicate ", i)
-  
-  df <- sensitivity_list_pen_EDGE[[i]]
-  
-  ##filtering data
-  df_signal <- df[df$species %in% peninsula_phylo$tip.label, ]
-  
-  # reorder data
-  df_signal <- df_signal[match(peninsula_phylo$tip.label,
-                               df_signal$species), ]
-  
-  # extracting the probability of extinction
-  pext_vector <- df_signal$pext
-  
-  names(pext_vector) <- df_signal$species
-  
-  
-  # Try-catch in case phylosig fails
-  K_pen_EDGE_list[[i]] <- tryCatch(
-    phylosig(peninsula_phylo, 
-             pext_vector, nsim = 100, test = TRUE, method = "K"),
-    error = function(e) NA
-  )
-  
-  lambda_pen_EDGE_list[[i]] <- tryCatch(
-    phylosig(peninsula_phylo, 
-             pext_vector, nsim = 100, test = TRUE, method = "lambda"),
-    error = function(e) NA
-  )
-}
 
+### using McApply 
+results <- mclapply(
+  seq_len(100),
+  mc.cores = 25,
+  FUN = function(i) {
+    
+    df <- sensitivity_list_pen_EDGE[[i]]
+    
+    df_signal <- df[df$species %in% peninsula_phylo$tip.label, ]
+    df_signal <- df_signal[
+      match(peninsula_phylo$tip.label, df_signal$species),
+    ]
+    
+    pext_vector <- df_signal$pext
+    names(pext_vector) <- df_signal$species
+    
+    list(
+      K = tryCatch(
+        phylosig(
+          peninsula_phylo,
+          pext_vector,
+          nsim = 100,
+          test = TRUE,
+          method = "K"
+        ),
+        error = function(e) NA
+      ),
+      lambda = tryCatch(
+        phylosig(
+          peninsula_phylo,
+          pext_vector,
+          nsim = 100,
+          test = TRUE,
+          method = "lambda"
+        ),
+        error = function(e) NA
+      )
+    )
+  }
+)
+#separate lists
+K_pen_EDGE_list <- lapply(results, `[[`, "K")
+lambda_pen_EDGE_list <- lapply(results, `[[`, "lambda")
 
 ##converting to df
 
@@ -960,6 +986,245 @@ write_csv(lambda_pen_EDGE_df,
 
 #reading
 lambda_pen_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_pen_EDGE_df.csv")
+
+
+###merging and plotting
+phylo_signal_pen_EDGE <- dplyr::left_join(K_pen_EDGE_df, lambda_pen_EDGE_df,
+                                     by = "replicate") %>% 
+  rename(p_value_K = P.x,
+         p_value_lambda = P.y)
+
+
+#saving 
+write_csv(phylo_signal_pen_EDGE, "Results/phylo_signal_peninsula_EDGE_random.csv")
+
+
+##summarising
+phylo_signal_pen_EDGE_summary <- phylo_signal_pen_EDGE %>%
+  summarise(
+    lambda_mean = mean(lambda),
+    lambda_sd = sd(lambda),
+    lambda_p_mean = mean(p_value_lambda),
+    K_mean = mean(K),
+    K_sd = sd(K),
+    K_p_mean = mean(p_value_K)
+  ) %>%
+  tibble::tibble(
+    parameter = c("lambda", "K"),
+    mean = c(.$lambda_mean, .$K_mean),
+    sd = c(.$lambda_sd, .$K_sd),
+    p_value_mean = c(.$lambda_p_mean, .$K_p_mean)
+  )
+
+phylo_signal_pen_EDGE_summary <- phylo_signal_pen_EDGE_summary[,-c(1:6)]
+
+phylo_signal_pen_EDGE_summary$region <- "Peninsula"
+
+#pivoting for plotting
+
+long_pen_EDGE_signal <- phylo_signal_pen_EDGE %>%
+  select(K, lambda) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value") %>%
+  mutate(Metric = recode(Metric,
+                         K = "Blomberg's K",
+                         lambda = "Pagel's λ"))
+
+# Define reference values from main analysis (DD and NE as Not Threatened)
+ref_main_pen_EDGE <- data.frame(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  ref = c(0.006, 0.59)
+)
+
+
+# Plot
+# Create axis limit values
+xlims <- tibble(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  xmin = c(0, 0),
+  xmax = c(0.015, 0.9)
+)
+
+# Merge with main data for facet-specific limits
+long_pen_EDGE_signal <- long_pen_EDGE_signal %>%
+  left_join(xlims, by = "Metric")
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/Phylo_signal_Peninsular_EDGE.png", 
+    width = 20, height = 12,
+    units = "cm", pointsize = 8, res = 300)
+
+ggplot(long_pen_EDGE_signal, aes(x = Value)) +
+  geom_histogram(fill = "skyblue", alpha = 0.6, bins = 30) +
+  facet_wrap(~Metric, scales = "free") +
+  
+  # Add invisible points to enforce per-facet x-axis limits
+  geom_blank(aes(x = xmin)) +
+  geom_blank(aes(x = xmax)) +
+  
+  # Main analysis vertical line (red, dashed)
+  geom_vline(data = ref_main_pen_EDGE, aes(xintercept = ref), 
+             linetype = "dashed", size = 1.2, color = "red") +
+  
+  
+  labs(x = NULL, y = NULL, title = "Phylogenetic Signal in Prob. of extinction\n[Peninsular Spain]") +
+  theme_minimal(base_size = 14) +
+  mynamestheme+
+  theme(
+    strip.text = element_text(size = 14),
+    plot.title = element_text(size = 15)
+  ) 
+
+dev.off()
+
+
+## fitting the betaregression
+
+# calling peninsula_total for the predictors
+peninsula_total <- read_csv("Data/Processed/peninsula_merged_iucn_clads.csv")
+
+# List of extinction scenarios
+ext_scenarios <- c("low_ex", "int_ex", "high_ex")
+
+# Initialize empty list to collect results
+all_results_pen_EDGE <- list()
+
+# Loop over scenarios
+for (scenario in ext_scenarios) {
+  
+  # Loop over replicates
+  for (i in seq_along(sensitivity_list_pen_EDGE)) {
+    
+    df <- sensitivity_list_pen_EDGE[[i]]
+    
+    df_genus <- df %>% mutate(genus = str_extract(species, "^[^_]+")) %>% 
+                       group_by(genus) %>% 
+                       summarise(mean_pext = mean(pext))
+   
+  #left joining with peninsula total
+    df_sub <- peninsula_total %>% 
+              left_join(df_genus, by = c("Genus" = "genus")) %>% 
+              drop_na() %>%
+             filter(ext_fraction == scenario) # Filter by extinction scenario
+   
+    ## modifying the response variable
+    n_df_sub <- nrow(df_sub)
+    
+    df_sub$mean_pext_adj <-
+      (df_sub$mean_pext * (n_df_sub - 1) + 0.5) / n_df_sub
+    
+    # Fit betaregression, wrapped in try() to handle errors
+    model <- try(betareg::betareg(mean_pext_adj ~ rates + mean_age,
+                         data = df_sub),
+                 silent = TRUE)
+    
+    # Skip model if error
+    if (inherits(model, "try-error")) next
+    
+    # Extract summary
+    smry <- summary(model)
+    
+    # Extract coefficient table and convert to data.frame
+    coef_df <- as.data.frame(smry$coefficients$mean)
+    coef_df$term <- rownames(coef_df)
+    rownames(coef_df) <- NULL
+    
+    # Add replicate and scenario metadata
+    coef_df$replicate <- i
+    coef_df$scenario <- scenario
+    
+    # Append to results list
+    all_results_pen_EDGE[[length(all_results_pen_EDGE) + 1]] <- coef_df
+  }
+}
+
+####GLM Summaries for each extinction scenarios
+betareg_summary_pen_df <- bind_rows(all_results_pen_EDGE)
+
+##factors
+betareg_summary_pen_df$scenario <- factor(betareg_summary_pen_df$scenario,
+                                      levels = c("low_ex",
+                                                 "int_ex",
+                                                 "high_ex"),
+                                      labels = c("Low",
+                                                 "Intermediate",
+                                                 "High"),
+                                      ordered = TRUE)
+
+betareg_summary_pen_df$term <- factor(betareg_summary_pen_df$term,
+                                  levels = c("(Intercept)",
+                                             "mean_age",
+                                             "rates"),
+                                  labels = c("Intercept",
+                                             "Corrected age",
+                                             "Diversification rates"),
+                                  ordered = TRUE)
+
+##GLM stats
+betareg_summary_pen_stats <- betareg_summary_pen_df %>%
+  group_by(term, scenario) %>%
+  summarize(
+    mean_estimate = mean(Estimate),
+    sd_estimate = sd(Estimate),
+    median_estimate = median(Estimate),
+    mean_p = mean(`Pr(>|z|)`, na.rm = TRUE),
+    prop_significant = mean(`Pr(>|z|)` < 0.05, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+##saving
+write_csv(betareg_summary_pen_stats, file = "Results/betareg_sensitivity_Peninsula.csv")
+
+writexl::write_xlsx(betareg_summary_pen_stats, path = "Results/betareg_sensitivity_Peninsula_excel.xlsx")
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/betareg_random_estimates_Peninsula.png", 
+    width = 20, height = 15,
+    units = "cm", pointsize = 8, res = 300)
+
+##plots
+betareg_summary_pen_df %>%
+  filter(term != "Intercept") %>%
+  ggplot(aes(x = scenario, y = Estimate, fill = scenario)) +
+  geom_boxplot() +
+  facet_wrap(~ term, scales = "free_y") +
+  theme_minimal(base_size = 14) +
+  labs( title = "Betaregression [Peninsular Spain]",
+        subtitle = "Random assignment of DD & NE sp.",
+       y = "Coefficients", x = "Extinction Scenario") +
+  scale_fill_brewer(palette = "Set2")+
+  mynamestheme+
+  theme(legend.position = "none")
+
+dev.off()
+
+
+
+##proportion of significant terms
+png("Figures/Supplementary/Sensitivity/betareg_random_pvalue_Peninsula.png", 
+    width = 20, height = 15,
+    units = "cm", pointsize = 8, res = 300)
+
+betareg_summary_pen_df %>%
+  filter(term != "Intercept") %>%
+  mutate(significant = `Pr(>|z|)` < 0.05) %>%
+  group_by(term, scenario) %>%
+  summarize(prop_sig = mean(significant), .groups = "drop") %>%
+  ggplot(aes(x = scenario, y = prop_sig, fill = scenario)) +
+  geom_col() +
+  facet_wrap(~ term) +
+  ylim(0, 1)+
+  theme_minimal(base_size = 14) +
+  labs(y = "Prop. of Significant Results (p < 0.05)",
+       x = "Extinction scenario",
+       title = "Betaregression [Peninsular Spain]",
+       subtitle = "Random assignment of DD & NE sp.") +
+  scale_fill_brewer(palette = "Set2") +
+  mynamestheme+
+  theme(legend.position = "none")
+
+dev.off()
 
 
 
@@ -1052,38 +1317,54 @@ load("Data/Processed/Sensitivity/sensitivity_list_andalusia_EDGE.RData")
 K_andalusia_EDGE_list <- vector("list", length = 100)
 lambda_andalusia_EDGE_list <- vector("list", length = 100)
 
-# Start loop for measuring phylo signal
-for (i in seq_len(100)) {
-  message("Processing replicate ", i)
-  
-  df <- sensitivity_list_andalusia_EDGE[[i]]
-  
-  ##filtering data
-  df_signal <- df[df$species %in% andalusia_phylo$tip.label, ]
-  
-  # reorder data
-  df_signal <- df_signal[match(andalusia_phylo$tip.label,
-                               df_signal$species), ]
-  
-  # extracting the probability of extinction
-  pext_vector <- df_signal$pext
-  
-  names(pext_vector) <- df_signal$species
-  
-  
-  # Try-catch in case phylosig fails
-  K_andalusia_EDGE_list[[i]] <- tryCatch(
-    phylosig(andalusia_phylo, 
-             pext_vector, nsim = 100, test = TRUE, method = "K"),
-    error = function(e) NA
-  )
-  
-  lambda_andalusia_EDGE_list[[i]] <- tryCatch(
-    phylosig(andalusia_phylo, 
-             pext_vector, nsim = 100, test = TRUE, method = "lambda"),
-    error = function(e) NA
-  )
-}
+########################################
+###       using the server        ######
+#######################################
+
+
+### using McApply 
+results_and <- mclapply(
+  seq_len(100),
+  mc.cores = 25,
+  FUN = function(i) {
+    
+    df <- sensitivity_list_andalusia_EDGE[[i]]
+    
+    df_signal <- df[df$species %in% andalusia_phylo$tip.label, ]
+    df_signal <- df_signal[
+      match(andalusia_phylo$tip.label, df_signal$species),
+    ]
+    
+    pext_vector <- df_signal$pext
+    names(pext_vector) <- df_signal$species
+    
+    list(
+      K = tryCatch(
+        phylosig(
+          peninsula_phylo,
+          pext_vector,
+          nsim = 100,
+          test = TRUE,
+          method = "K"
+        ),
+        error = function(e) NA
+      ),
+      lambda = tryCatch(
+        phylosig(
+          peninsula_phylo,
+          pext_vector,
+          nsim = 100,
+          test = TRUE,
+          method = "lambda"
+        ),
+        error = function(e) NA
+      )
+    )
+  }
+)
+
+K_andalusia_EDGE_list <- lapply(results_and, `[[`, "K")
+lambda_andalusia_EDGE_list <- lapply(results_and, `[[`, "lambda")
 
 
 ##converting to df
@@ -1121,3 +1402,235 @@ write_csv(lambda_andalusia_EDGE_df,
 #reading
 lambda_andalusia_EDGE_df <- read_csv("Data/Processed/Sensitivity/Randomizations/lambda_andalusia_EDGE_df.csv")
 
+###merging and plotting########
+phylo_signal_and_EDGE <- dplyr::left_join(K_andalusia_EDGE_df, lambda_andalusia_EDGE_df,
+                                     by = "replicate") %>% 
+  rename(p_value_K = P.x,
+         p_value_lambda = P.y)
+
+#saving 
+write_csv(phylo_signal_and_EDGE, "Results/phylo_signal_andalucia_EDGE_random.csv")
+
+
+##summarising
+phylo_signal_and_EDGE_summary <- phylo_signal_and_EDGE %>%
+  summarise(
+    lambda_mean = mean(lambda),
+    lambda_sd = sd(lambda),
+    lambda_p_mean = mean(p_value_lambda),
+    K_mean = mean(K),
+    K_sd = sd(K),
+    K_p_mean = mean(p_value_K)
+  ) %>%
+  tibble::tibble(
+    parameter = c("lambda", "K"),
+    mean = c(.$lambda_mean, .$K_mean),
+    sd = c(.$lambda_sd, .$K_sd),
+    p_value_mean = c(.$lambda_p_mean, .$K_p_mean)
+  )
+
+#removing extra columns
+phylo_signal_and_EDGE_summary <- phylo_signal_and_EDGE_summary[,-c(1:6)]
+
+#assigning regions
+phylo_signal_and_EDGE_summary$region <- "Andalusia"
+
+##merging Phylo signal regions
+phylo_signal_random_summary <- rbind(phylo_signal_pen_summary,
+                                     phylo_signal_and_summary)
+
+write_xlsx(phylo_signal_random_summary,
+           path = "Results/phylo_signal_random_summary.xlsx")
+
+#pivoting for plotting
+
+long_and_EDGE_signal <- phylo_signal_and_EDGE %>%
+  select(K, lambda) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value") %>%
+  mutate(Metric = recode(Metric,
+                         K = "Blomberg's K",
+                         lambda = "Pagel's λ"))
+
+# Define reference values from main analysis (DD and NE as Not Threatened)
+ref_main_and_EDGE <- data.frame(
+  Metric = c("Blomberg's K", "Pagel's λ"),
+  ref = c(0.022, 0.58)
+)
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/Phylo_signal_Andalucia_EDGE.png", 
+    width = 20, height = 12,
+    units = "cm", pointsize = 8, res = 300)
+
+ggplot(long_and_EDGE_signal, aes(x = Value)) +
+  geom_histogram(fill = "skyblue", alpha = 0.6, bins = 30) +
+  facet_wrap(~Metric, scales = "free") +
+  
+  
+  # Main analysis vertical line (red, dashed)
+  geom_vline(data = ref_main_and_EDGE, aes(xintercept = ref), 
+             linetype = "dashed", size = 1.2, color = "red") +
+  
+  labs(x = NULL, y = NULL, 
+       title = "Phylogenetic Signal in Prob. of Extinction\n[Eastern Andalusia]") +
+  theme_minimal(base_size = 14) +
+  mynamestheme +
+  theme(
+    strip.text = element_text(size = 14),
+    plot.title = element_text(size = 15)
+  ) +
+  scale_x_continuous(labels = scales::label_number(accuracy = 0.0001))
+
+
+dev.off()
+
+
+
+#######betaregression sensitivity analysis
+
+# calling andalusia_total for the predictors
+andalusia_total <- read_csv("Data/Processed/andalucia_merged_iucn_clads.csv")
+
+# List of extinction scenarios
+ext_scenarios <- c("low_ex", "int_ex", "high_ex")
+
+# Initialize empty list to collect results
+all_results_andalusia_EDGE <- list()
+
+# Loop over scenarios
+for (scenario in ext_scenarios) {
+  
+  # Loop over replicates
+  for (i in seq_along(sensitivity_list_andalusia_EDGE)) {
+    
+    df <- sensitivity_list_andalusia_EDGE[[i]]
+    
+    df_genus <- df %>% mutate(genus = str_extract(species, "^[^_]+")) %>% 
+      group_by(genus) %>% 
+      summarise(mean_pext = mean(pext))
+    
+    #left joining with andalusia total
+    df_sub <- andalusia_total %>% 
+      left_join(df_genus, by = c("Genus" = "genus")) %>% 
+      drop_na() %>%
+      filter(ext_fraction == scenario) # Filter by extinction scenario
+    
+    ## modifying the response variable
+    n_df_sub <- nrow(df_sub)
+    
+    df_sub$mean_pext_adj <-
+      (df_sub$mean_pext * (n_df_sub - 1) + 0.5) / n_df_sub
+    
+    # Fit betaregression, wrapped in try() to handle errors
+    model <- try(betareg::betareg(mean_pext_adj ~ rates + mean_age,
+                                  data = df_sub),
+                 silent = TRUE)
+    
+    # Skip model if error
+    if (inherits(model, "try-error")) next
+    
+    # Extract summary
+    smry <- summary(model)
+    
+    # Extract coefficient table and convert to data.frame
+    coef_df <- as.data.frame(smry$coefficients$mean)
+    coef_df$term <- rownames(coef_df)
+    rownames(coef_df) <- NULL
+    
+    # Add replicate and scenario metadata
+    coef_df$replicate <- i
+    coef_df$scenario <- scenario
+    
+    # Apandalusiad to results list
+    all_results_andalusia_EDGE[[length(all_results_andalusia_EDGE) + 1]] <- coef_df
+  }
+}
+
+####GLM Summaries for each extinction scenarios
+betareg_summary_andalusia_df <- bind_rows(all_results_andalusia_EDGE)
+
+##factors
+betareg_summary_andalusia_df$scenario <- factor(betareg_summary_andalusia_df$scenario,
+                                          levels = c("low_ex",
+                                                     "int_ex",
+                                                     "high_ex"),
+                                          labels = c("Low",
+                                                     "Intermediate",
+                                                     "High"),
+                                          ordered = TRUE)
+
+betareg_summary_andalusia_df$term <- factor(betareg_summary_andalusia_df$term,
+                                      levels = c("(Intercept)",
+                                                 "mean_age",
+                                                 "rates"),
+                                      labels = c("Intercept",
+                                                 "Corrected age",
+                                                 "Diversification rates"),
+                                      ordered = TRUE)
+
+##GLM stats
+betareg_summary_andalusia_stats <- betareg_summary_andalusia_df %>%
+  group_by(term, scenario) %>%
+  summarize(
+    mean_estimate = mean(Estimate),
+    sd_estimate = sd(Estimate),
+    median_estimate = median(Estimate),
+    mean_p = mean(`Pr(>|z|)`, na.rm = TRUE),
+    prop_significant = mean(`Pr(>|z|)` < 0.05, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+##saving
+write_csv(betareg_summary_andalusia_stats, file = "Results/betareg_sensitivity_andalusia.csv")
+
+writexl::write_xlsx(betareg_summary_andalusia_stats, path = "Results/betareg_sensitivity_andalusia_excel.xlsx")
+
+
+####plotting
+png("Figures/Supplementary/Sensitivity/betareg_random_estimates_andalusia.png", 
+    width = 20, height = 15,
+    units = "cm", pointsize = 8, res = 300)
+
+##plots
+betareg_summary_andalusia_df %>%
+  filter(term != "Intercept") %>%
+  ggplot(aes(x = scenario, y = Estimate, fill = scenario)) +
+  geom_boxplot() +
+  facet_wrap(~ term, scales = "free_y") +
+  theme_minimal(base_size = 14) +
+  labs(title = "Betaregression [Eastern Andalusia]",
+        subtitle = "Random assignment of DD & NE sp.",
+       y = "Coefficients", x = "Extinction Scenario") +
+  scale_fill_brewer(palette = "Set2")+
+  mynamestheme+
+  theme(legend.position = "none")
+
+dev.off()
+
+
+
+##proportion of significant terms
+png("Figures/Supplementary/Sensitivity/betareg_random_pvalue_andalusia.png", 
+    width = 20, height = 15,
+    units = "cm", pointsize = 8, res = 300)
+
+betareg_summary_andalusia_df %>%
+  filter(term != "Intercept") %>%
+  mutate(significant = `Pr(>|z|)` < 0.05) %>%
+  group_by(term, scenario) %>%
+  summarize(prop_sig = mean(significant), .groups = "drop") %>%
+  ggplot(aes(x = scenario, y = prop_sig, fill = scenario)) +
+  geom_col() +
+  facet_wrap(~ term) +
+  ylim(0, 1)+
+  theme_minimal(base_size = 14) +
+  labs(y = "Prop. of Significant Results (p < 0.05)",
+       x = "Extinction scenario",
+       title = "Betaregression [Eastern Andalusia]",
+       subtitle = "Random assignment of DD & NE sp.") +
+  scale_fill_brewer(palette = "Set2") +
+  mynamestheme+
+  theme(legend.position = "none")
+
+dev.off()
