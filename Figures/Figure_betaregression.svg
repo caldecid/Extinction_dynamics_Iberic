@@ -23,12 +23,12 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="pt"
      inkscape:zoom="1.1283088"
-     inkscape:cx="453.33333"
-     inkscape:cy="301.77908"
+     inkscape:cx="452.44706"
+     inkscape:cy="301.77909"
      inkscape:window-width="1920"
-     inkscape:window-height="991"
-     inkscape:window-x="-9"
-     inkscape:window-y="-9"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
      inkscape:window-maximized="1"
      inkscape:current-layer="surface6" />
   <defs
@@ -692,6 +692,18 @@
          d="M 491.816406 247.992188 L 669.042969 247.992188 L 669.042969 415.929688 L 491.816406 415.929688 Z M 491.816406 247.992188 "
          id="path91" />
     </clipPath>
+    <rect
+       x="81.04422"
+       y="38.496006"
+       width="48.626534"
+       height="24.313267"
+       id="rect2" />
+    <rect
+       x="81.04422"
+       y="38.496006"
+       width="48.626534"
+       height="24.313267"
+       id="rect2-7" />
   </defs>
   <g
      id="surface6">
@@ -17407,5 +17419,21 @@
          y="239.925781"
          id="use4152" />
     </g>
+    <text
+       xml:space="preserve"
+       id="text1"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:18.6667px;font-family:'Times New Roman';-inkscape-font-specification:'Times New Roman, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect2);display:inline;fill:#000000;stroke-width:0.377953"
+       transform="matrix(0.75,0,0,0.75,-55.778452,-22.813058)"><tspan
+         x="81.044922"
+         y="54.985097"
+         id="tspan1">(A)</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text1-5"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:18.6667px;font-family:'Times New Roman';-inkscape-font-specification:'Times New Roman, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect2-7);display:inline;fill:#000000;stroke-width:0.377953"
+       transform="matrix(0.75,0,0,0.75,-58.001869,198.89758)"><tspan
+         x="81.044922"
+         y="54.985097"
+         id="tspan2">(B)</tspan></text>
   </g>
 </svg>
