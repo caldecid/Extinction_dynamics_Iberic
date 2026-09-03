@@ -17,6 +17,10 @@ plant_genus_rates <- data.frame(Species = CladsOutput[["tree"]][["tip.label"]],
 #saving
 write_csv(plant_genus_rates, file = "Data/Processed/plant_genus_rates.csv")
 
+#reading
+plant_genus_rates <- read_csv("Data/Processed/plant_genus_rates.csv") %>% 
+                        rename(Genus = Species)
+
 ###############################Peninsula#######################################
 
 ##calling peninsula data
