@@ -532,9 +532,516 @@ EDGE2_Peninsula <- EDGE2_Peninsula %>% mutate(genus = str_extract(species, "^[^_
 
 ##grouping genus and obtainig the mean probability of extinction
 EDGE2_peninsula_genera <- EDGE2_Peninsula %>% group_by(genus) %>% 
-  summarise(mean_pext = mean(pext))
+                            summarise(mean_pext = mean(pext))
 
 ##left join
 peninsula_total_pext <- peninsula_total %>% left_join(EDGE2_peninsula_genera,
                                           by = c("Genus" = "genus")) %>% 
                                            drop_na()
+
+####### high extinction
+peninsula_pext_high <- peninsula_total_pext %>%
+                          filter(ext_fraction == "high_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+peninsula_high_pext_pgls <- peninsula_pext_high %>%
+                      filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_pen_pext_high <- drop.tip(plant_genus_phylo,
+                          setdiff(plant_genus_phylo$tip.label,
+                                  peninsula_high_pext_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+peninsula_high_pext_pgls <- peninsula_high_pext_pgls %>%
+                           slice(match(tree_pen_pext_high$tip.label, Genus))
+
+# checking if everything matches
+all(peninsula_high_pext_pgls$Genus == tree_pen_pext_high$tip.label)
+
+
+# checking node labels
+head(tree_pen_pext_high$tip.label)
+
+# Check internal node labels
+head(tree_pen_pext_high$node.label)
+
+# strings in the nodes
+tree_pen_pext_high$node.label <- NULL
+
+# Check
+tree_pen_pext_high$node.label
+
+#creating comparative data
+comp_pen_pext_high <- comparative.data(phy = tree_pen_pext_high,
+                                  data = as.data.frame(peninsula_high_pext_pgls),
+                                  names.col = "Genus",
+                                  vcv = TRUE,
+                                  na.omit = FALSE)
+
+# model (mean probability of extinction ~ mean age + rates)                                  
+model_pen_pext_high_pgls <- pgls(
+                              mean_pext ~ mean_age + rates,
+                              data = comp_pen_pext_high,
+                              lambda = "ML")
+
+#calling summary
+x_pen_pext_high <- summary(model_pen_pext_high_pgls)
+
+#transforming coefficients in df
+coef_pen_pext_high <- as.data.frame(x_pen_pext_high$coefficients)
+
+coef_pen_pext_high$term <- rownames(coef_pen_pext_high)
+rownames(coef_pen_pext_high) <- NULL
+
+#table for Peninsula high
+coef_pen_pext_high <- coef_pen_pext_high %>%
+  dplyr::mutate(
+    Region = "Peninsular Spain",
+    Extinction_scenario = "High",
+    lambda = x_pen_pext_high$param.CI$lambda$opt,
+    R_squared = x_pen_pext_high$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared
+  )
+
+######## Intermediate
+
+peninsula_pext_int <- peninsula_total_pext %>%
+                              filter(ext_fraction == "int_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+peninsula_pext_int_pgls <- peninsula_pext_int %>%
+                       filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_pen_pext_int <- drop.tip(plant_genus_phylo,
+                         setdiff(plant_genus_phylo$tip.label,
+                                 peninsula_pext_int_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+peninsula_pext_int_pgls <- peninsula_pext_int_pgls %>%
+                        slice(match(tree_pen_pext_int$tip.label, Genus))
+
+# checking if everything matches
+all(peninsula_pext_int_pgls$Genus == tree_pen_pext_int$tip.label)
+
+
+# checking node labels
+head(tree_pen_pext_int$tip.label)
+
+# Check internal node labels
+head(tree_pen_pext_int$node.label)
+
+# strings in the nodes
+tree_pen_pext_int$node.label <- NULL
+
+# Check
+tree_pen_pext_int$node.label
+
+#creating comparative data
+comp_pen_pext_int <- comparative.data(phy = tree_pen_pext_int,
+                                 data = as.data.frame(peninsula_pext_int_pgls),
+                                 names.col = "Genus",
+                                 vcv = TRUE,
+                                 na.omit = FALSE)
+
+# model (prop. threated ~ mean age + rates)                                  
+model_pen_pext_int_pgls <- pgls(mean_pext ~ mean_age + rates,
+                                  data = comp_pen_pext_int,
+                                  lambda = "ML")
+
+#calling summary
+x_pen_pext_int <- summary(model_pen_pext_int_pgls)
+
+#transforming coefficients in df
+coef_pen_pext_int <- as.data.frame(x_pen_pext_int$coefficients)
+
+coef_pen_pext_int$term <- rownames(coef_pen_pext_int)
+rownames(coef_pen_pext_int) <- NULL
+
+#table for Peninsula int
+coef_pen_pext_int <- coef_pen_pext_int %>%
+  dplyr::mutate(
+    Region = "Peninsular Spain",
+    Extinction_scenario = "Intermediate",
+    lambda = x_pen_pext_int$param.CI$lambda$opt,
+    R_squared = x_pen_pext_int$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared
+  )
+
+
+######## Low
+peninsula_pext_low <- peninsula_total_pext %>%
+                      filter(ext_fraction == "low_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+peninsula_pext_low_pgls <- peninsula_pext_low %>%
+  filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_pen_pext_low <- drop.tip(plant_genus_phylo,
+                         setdiff(plant_genus_phylo$tip.label,
+                                 peninsula_pext_low_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+peninsula_pext_low_pgls <- peninsula_pext_low_pgls %>%
+                        slice(match(tree_pen_pext_low$tip.label, Genus))
+
+# checking if everything matches
+all(peninsula_pext_low_pgls$Genus == tree_pen_pext_low$tip.label)
+
+
+# checking node labels
+head(tree_pen_pext_low$tip.label)
+
+# Check lowernal node labels
+head(tree_pen_pext_low$node.label)
+
+# strings in the nodes
+tree_pen_pext_low$node.label <- NULL
+
+# Check
+tree_pen_pext_low$node.label
+
+#creating comparative data
+comp_pen_pext_low <- comparative.data(phy = tree_pen_pext_low,
+                                 data = as.data.frame(peninsula_pext_low_pgls),
+                                 names.col = "Genus",
+                                 vcv = TRUE,
+                                 na.omit = FALSE)
+
+# model (prop. threated ~ mean age + rates)                                  
+model_pen_pext_low_pgls <- pgls(
+                                    mean_pext ~ mean_age + rates,
+                                    data = comp_pen_pext_low,
+                                    lambda = "ML")
+
+#calling summary
+x_pen_pext_low <- summary(model_pen_pext_low_pgls)
+
+#transforming coefficients in df
+coef_pen_pext_low <- as.data.frame(x_pen_pext_low$coefficients)
+coef_pen_pext_low$term <- rownames(coef_pen_pext_low)
+rownames(coef_pen_pext_low) <- NULL
+
+#table for Peninsula low
+coef_pen_pext_low <- coef_pen_pext_low %>%
+  dplyr::mutate(
+    Region = "Peninsular Spain",
+    Extinction_scenario = "Low",
+    lambda = x_pen_pext_low$param.CI$lambda$opt,
+    R_squared = x_pen_pext_low$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared)
+
+### joining all Peninsula coefficients
+coef_peninsula_pext_pgls <- rbind(coef_pen_pext_high, 
+                                             coef_pen_pext_int,
+                                             coef_pen_pext_low)
+
+########################## andalusia ###############################
+
+#reading
+andalusia_total <- read_csv("Data/Processed/andalucia_merged_iucn_clads.csv")
+
+##calling EDGE 
+EDGE2_andalusia <- read_csv(file = "Data/Processed/EDGE2_andalusia.csv")
+
+##Adding genus
+EDGE2_andalusia <- EDGE2_andalusia %>% mutate(genus = str_extract(species, "^[^_]+"))
+
+##grouping genus and obtainig the mean probability of extinction
+EDGE2_andalusia_genera <- EDGE2_andalusia %>% group_by(genus) %>% 
+                             summarise(mean_pext = mean(pext))
+
+##left join
+andalusia_total_pext <- andalusia_total %>% left_join(EDGE2_andalusia_genera,
+                                                 by = c("Genus" = "genus")) %>% 
+                                                  drop_na()
+
+####### high extinction
+andalusia_pext_high <- andalusia_total_pext %>%
+                          filter(ext_fraction == "high_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+andalusia_high_pext_pgls <- andalusia_pext_high %>%
+                             filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_andalusia_high <- drop.tip(plant_genus_phylo,
+                          setdiff(plant_genus_phylo$tip.label,
+                                  andalusia_high_pext_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+andalusia_high_pext_pgls <- andalusia_high_pext_pgls %>%
+                               slice(match(tree_andalusia_high$tip.label, Genus))
+
+# checking if everything matches
+all(andalusia_high_pext_pgls$Genus == tree_andalusia_high$tip.label)
+
+
+# checking node labels
+head(tree_andalusia_high$tip.label)
+
+# Check internal node labels
+head(tree_andalusia_high$node.label)
+
+# strings in the nodes
+tree_andalusia_high$node.label <- NULL
+
+# Check
+tree_andalusia_high$node.label
+
+#creating comparative data
+comp_andalusia_pext_high <- comparative.data(phy = tree_andalusia_high,
+                               data = as.data.frame(andalusia_high_pext_pgls),
+                                       names.col = "Genus",
+                                       vcv = TRUE,
+                                       na.omit = FALSE)
+
+# model (prop. threated ~ mean age + rates)                                  
+model_andalusia_pext_high_pgls <- pgls(
+                                    mean_pext ~ mean_age + rates,
+                                    data = comp_andalusia_pext_high,
+                                    lambda = "ML")
+
+#calling summary
+x_andalusia_pext_high <- summary(model_andalusia_pext_high_pgls)
+
+#transforming coefficients in df
+coef_andalusia_pext_high <- as.data.frame(x_andalusia_pext_high$coefficients)
+
+coef_andalusia_pext_high$term <- rownames(coef_andalusia_pext_high)
+rownames(coef_andalusia_pext_high) <- NULL
+
+#table for andalusia high
+coef_andalusia_pext_high <- coef_andalusia_pext_high %>%
+  dplyr::mutate(
+    Region = "andalusiar Spain",
+    Extinction_scenario = "High",
+    lambda = x_andalusia_pext_high$param.CI$lambda$opt,
+    R_squared = x_andalusia_pext_high$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared
+  )
+
+######## Intermediate
+
+andalusia_int_pext <- andalusia_total_pext %>%
+                filter(ext_fraction == "int_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+andalusia_int_pext_pgls <- andalusia_int_pext %>%
+  filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_andalusia_pext_int <- drop.tip(plant_genus_phylo,
+                              setdiff(plant_genus_phylo$tip.label,
+                                      andalusia_int_pext_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+andalusia_int_pext_pgls <- andalusia_int_pext_pgls %>%
+  slice(match(tree_andalusia_pext_int$tip.label, Genus))
+
+# checking if everything matches
+all(andalusia_int_pext_pgls$Genus == tree_andalusia_pext_int$tip.label)
+
+
+# checking node labels
+head(tree_andalusia_pext_int$tip.label)
+
+# Check internal node labels
+head(tree_andalusia_pext_int$node.label)
+
+# strings in the nodes
+tree_andalusia_pext_int$node.label <- NULL
+
+# Check
+tree_andalusia_pext_int$node.label
+
+#creating comparative data
+comp_andalusia_pext_int <- comparative.data(phy = tree_andalusia_pext_int,
+                                data = as.data.frame(andalusia_int_pext_pgls),
+                                      names.col = "Genus",
+                                      vcv = TRUE,
+                                      na.omit = FALSE)
+
+# model (prop. threated ~ mean age + rates)                                  
+model_andalusia_pext_int_pgls <- pgls(
+                                mean_pext ~ mean_age + rates,
+                                data = comp_andalusia_pext_int,
+                                lambda = "ML")
+
+#calling summary
+x_andalusia_pext_int <- summary(model_andalusia_pext_int_pgls)
+
+#transforming coefficients in df
+coef_andalusia_pext_int <- as.data.frame(x_andalusia_pext_int$coefficients)
+
+coef_andalusia_pext_int$term <- rownames(coef_andalusia_pext_int)
+rownames(coef_andalusia_pext_int) <- NULL
+
+#table for andalusia int
+coef_andalusia_pext_int <- coef_andalusia_pext_int %>%
+  dplyr::mutate(
+    Region = "andalusiar Spain",
+    Extinction_scenario = "Intermediate",
+    lambda = x_andalusia_pext_int$param.CI$lambda$opt,
+    R_squared = x_andalusia_pext_int$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared
+  )
+
+
+######## Low
+
+andalusia_low_pext <- andalusia_total_pext %>%
+  filter(ext_fraction == "low_ex")
+
+# match datasets
+
+# Keep only genera present in both the data and phylogeny
+andalusia_low_pext_pgls <- andalusia_low_pext %>%
+  filter(Genus %in% plant_genus_phylo$tip.label)
+
+# Prune the phylogeny to the genera in the dataset
+tree_andalusia_pext_low <- drop.tip(plant_genus_phylo,
+                              setdiff(plant_genus_phylo$tip.label,
+                                      andalusia_low_pext_pgls$Genus))
+
+
+# Make sure the order of the data matches the tree
+andalusia_low_pext_pgls <- andalusia_low_pext_pgls %>%
+                     slice(match(tree_andalusia_pext_low$tip.label, Genus))
+
+# checking if everything matches
+all(andalusia_low_pext_pgls$Genus == tree_andalusia_pext_low$tip.label)
+
+
+# checking node labels
+head(tree_andalusia_pext_low$tip.label)
+
+# Check lowernal node labels
+head(tree_andalusia_pext_low$node.label)
+
+# strings in the nodes
+tree_andalusia_pext_low$node.label <- NULL
+
+# Check
+tree_andalusia_pext_low$node.label
+
+#creating comparative data
+comp_andalusia_pext_low <- comparative.data(phy = tree_andalusia_pext_low,
+                                  data = as.data.frame(andalusia_low_pext_pgls),
+                                      names.col = "Genus",
+                                      vcv = TRUE,
+                                      na.omit = FALSE)
+
+# model (prop. threated ~ mean age + rates)                                  
+model_andalusia_pext_low_pgls <- pgls(
+                        mean_pext ~ mean_age + rates,
+                        data = comp_andalusia_pext_low,
+                        lambda = "ML")
+
+#calling summary
+x_andalusia_pext_low <- summary(model_andalusia_pext_low_pgls)
+
+#transforming coefficients in df
+coef_andalusia_pext_low <- as.data.frame(x_andalusia_pext_low$coefficients)
+coef_andalusia_pext_low$term <- rownames(coef_andalusia_pext_low)
+rownames(coef_andalusia_pext_low) <- NULL
+
+#table for andalusia low
+coef_andalusia_pext_low <- coef_andalusia_pext_low %>%
+  dplyr::mutate(
+    Region = "andalusiar Spain",
+    Extinction_scenario = "Low",
+    lambda = x_andalusia_pext_low$param.CI$lambda$opt,
+    R_squared = x_andalusia_pext_low$r.squared
+  ) %>%
+  dplyr::select(
+    Region,
+    Extinction_scenario,
+    term,
+    Estimate,
+    `Std. Error`,
+    `t value`,
+    `Pr(>|t|)`,
+    lambda,
+    R_squared)
+
+### joining all andalusia coefficients
+coef_andalusia_pext_pgls <- rbind(coef_andalusia_pext_high, 
+                                  coef_andalusia_pext_int,
+                                  coef_andalusia_pext_low)
+
+
+#binding Peninsula and Andalusia results
+coef_pext_pgls <- rbind(coef_peninsula_pext_pgls,
+                        coef_andalusia_pext_pgls)
+
+#saving
+write_xlsx(coef_pext_pgls, path = "Data/Processed/Sensitivity/PGLS/coef_pext_pgls.xlsx")
+
