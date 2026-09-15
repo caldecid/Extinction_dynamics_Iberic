@@ -45,61 +45,178 @@ calculate_PD_curve <- function(tree, df) {
 }
 
 
-### calculating PD curve loss at species level #########
+###### Calculating PD curve loss through whole-genus removal #########
+# based on the proportion of threatened species per genus
 
-calculate_PD_curve_prop <- function(tree, df,
-                                    random_ties = TRUE) {
+calculate_PD_curve_prop_2 <- function(tree, df,
+                                      random_ties = TRUE) {
   
   require(dplyr)
   require(ape)
   
-  # Copy objects
+  # Check required columns
+  required_cols <- c(
+    "genus",
+    "species",
+    "proportion_threatened"
+  )
+  
+  missing_cols <- setdiff(required_cols, names(df))
+  
+  if (length(missing_cols) > 0) {
+    stop(
+      "Missing required columns: ",
+      paste(missing_cols, collapse = ", ")
+    )
+  }
+  
+  # Keep only species present in the phylogeny
+  df_sim <- df %>%
+    filter(species %in% tree$tip.label)
+  
   tree_sim <- tree
-  df_sim <- df
   
-  pd_curve <- c()
+  # Check that each genus has only one proportion-threatened value
+  genus_check <- df_sim %>%
+    group_by(genus) %>%
+    summarise(
+      n_proportion_values = n_distinct(
+        proportion_threatened
+      ),
+      .groups = "drop"
+    )
   
-  # Loop until no genera left
+  if (any(genus_check$n_proportion_values > 1)) {
+    stop(
+      "proportion_threatened is not constant within ",
+      "at least one genus."
+    )
+  }
+  
+  # Store results
+  pd_curve <- numeric(0)
+  removed_genera <- character(0)
+  n_species_removed <- integer(0)
+  proportion_removed <- numeric(0)
+  
+  # Continue until no genera or no tree tips remain
   while (nrow(df_sim) > 0) {
     
-    # 1. Compute genus-level proportion threatened
+    # 1. Calculate genus-level scores
     genus_scores <- df_sim %>%
       group_by(genus) %>%
-      summarise(proportion_threatened = first(proportion_threatened), 
-                .groups = "drop")
+      summarise(
+        richness = n(),
+        proportion_threatened = first(
+          proportion_threatened
+        ),
+        .groups = "drop"
+      )
     
-    # 2. Select genus with highest proportion
-    max_val <- max(genus_scores$proportion_threatened)
+    # Remove genera with missing scores from consideration
+    genus_scores <- genus_scores %>%
+      filter(!is.na(proportion_threatened))
+    
+    if (nrow(genus_scores) == 0) {
+      warning(
+        "No genera with non-missing ",
+        "proportion_threatened remain."
+      )
+      break
+    }
+    
+    # 2. Select genus/genera with the highest proportion
+    max_val <- max(
+      genus_scores$proportion_threatened,
+      na.rm = TRUE
+    )
     
     candidates <- genus_scores$genus[
       genus_scores$proportion_threatened == max_val
     ]
     
-    if (length(candidates) > 1 && random_ties) {
-      selected_genus <- sample(candidates, 1)
+    if (
+      random_ties &&
+      length(candidates) > 1
+    ) {
+      selected_genus <- sample(
+        candidates,
+        size = 1
+      )
     } else {
       selected_genus <- candidates[1]
     }
     
-    # 3. Get species of that genus
-    species_to_remove <- df_sim$species[df_sim$genus == selected_genus]
+    # 3. Identify all species belonging to selected genus
+    species_to_remove <- df_sim$species[
+      df_sim$genus == selected_genus
+    ]
     
-    # 4. Prune from tree
-    tree_sim <- ape::drop.tip(tree_sim, species_to_remove)
+    # Keep only species currently present in the tree
+    species_to_remove <- intersect(
+      species_to_remove,
+      tree_sim$tip.label
+    )
     
-    # 5. Calculate PD
-    pd_curve <- c(pd_curve, sum(tree_sim$edge.length))
+    # 4. Remove the whole genus from the phylogeny
+    # Only prune while more than one tip remains.
+    # Once one or zero tips remain, PD is recorded as zero.
+    if (length(tree_sim$tip.label) > 1 &&
+        length(species_to_remove) > 0) {
+      
+      tree_sim <- ape::drop.tip(
+        tree_sim,
+        tip = species_to_remove
+      )
+    }
     
-    # 6. Update dataframe
-    df_sim <- df_sim[df_sim$genus != selected_genus, ]
     
-    # Stop if tree empty
-    if (length(tree_sim$tip.label) == 0) break
+    # 5. Calculate PD after removal
+    current_pd <- if (
+      length(tree_sim$tip.label) > 1
+    ) {
+      sum(
+        tree_sim$edge.length,
+        na.rm = TRUE
+      )
+    } else {
+      0
+    }
+    
+    pd_curve <- c(
+      pd_curve,
+      current_pd
+    )
+    
+    removed_genera <- c(
+      removed_genera,
+      selected_genus
+    )
+    
+    n_species_removed <- c(
+      n_species_removed,
+      length(species_to_remove)
+    )
+    
+    proportion_removed <- c(
+      proportion_removed,
+      max_val
+    )
+    
+    # 6. Remove selected genus from the dataframe
+    df_sim <- df_sim %>%
+      filter(genus != selected_genus)
   }
   
-  return(pd_curve)
+  # Return a tidy data frame
+  tibble(
+    step = seq_along(pd_curve),
+    removed_genus = removed_genera,
+    n_species_removed = n_species_removed,
+    proportion_threatened = proportion_removed,
+    PD = pd_curve
+  )
 }
-
 
 ####### adapting the previous function for accepting EDGE2 metrics ########
 
