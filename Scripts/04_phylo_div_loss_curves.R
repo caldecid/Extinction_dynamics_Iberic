@@ -573,52 +573,124 @@ EDGE2_andalusia <- EDGE2_andalusia %>% mutate(genus = str_extract(species,
 ########### probability of extinction ####################
 
 ##calling the 'calculate_pd_curve_EDGE2' function, using probability of extinction (pext)
-pd_curves_peninsula_pext <- replicate(100, 
-                                calculate_PD_curve_EDGE2(tree = peninsula_phylo,
-                                                          df = EDGE2_Peninsula))
+#plan for parallel processing
+plan(multisession,
+          workers = 5
+        )
+
+#seed
+set.seed(13)
+
+
+n_observed <- 100
+
+#pd loss observed
+pd_curves_peninsula_pext_list <- future_lapply(
+  X = seq_len(n_observed),
+  FUN = function(i) {
+    
+    calculate_PD_curve_EDGE2(
+      tree = peninsula_phylo,
+      df = EDGE2_Peninsula
+    )
+    
+  },
+  future.seed = TRUE
+)
+
+#check if the datsets have the same rows 
+table(lengths(pd_curves_peninsula_pext_list))
+
+#collapsing into one single matrix
+pd_curves_peninsula_pext <- do.call(
+                                      cbind,
+                                      pd_curves_peninsula_pext_list
+                                    )
+
 
 ##calculating the observed area under the curve (AUC)
 mean_pd_curve_peninsula_pext <- rowMeans(pd_curves_peninsula_pext)
 observed_auc_peninsula_pext <- mean(colSums(pd_curves_peninsula_pext))
 
-##null pd curves
+# Null curves scores
+genus_scores <- EDGE2_Peninsula %>%
+                          distinct(
+                            genus,
+                            pext
+                          )
 
-##generating the null test
-set.seed(13)
+#running null pd curves
+null_pd_curves_peninsula_pext_list <- future_lapply(
+  seq_len(999),
+  function(i) {
+    
+    genus_scores_null <- genus_scores %>%
+      mutate(
+        pext = sample(
+          pext
+        )
+      )
+    
+    df_null <- EDGE2_Peninsula %>%
+      select(-pext) %>%
+      left_join(
+        genus_scores_null,
+        by = "genus"
+      )
+    
+    calculate_PD_curve_EDGE2(
+      tree = peninsula_phylo,
+      df = df_null
+    )
+    
+  },
+  future.seed = TRUE
+)
 
-null_pd_curves_peninsula_pext <- lapply(1:999, function(i) {
-  
-  df_null <- EDGE2_Peninsula
-  
-  # Shuffle extinction probabilities
-  df_null$pext <- sample(df_null$pext)
-  
-  # Recalculate PD curve
-  pd_curve_null <- calculate_PD_curve_EDGE2(
-    tree = peninsula_phylo,
-    df = df_null,
-    ranking = "sum_pext"
-  )
-  
-  return(pd_curve_null)
-})
+#collapsing into a single matrix
+null_pd_curves_peninsula_pext <- do.call(
+                      cbind,
+                      null_pd_curves_peninsula_pext_list
+                    )
+# Return to sequential processing
+plan(sequential)
+
+#null auc peninsula pext
+null_auc_peninsula_pext <- apply(
+  null_pd_curves_peninsula_pext,
+  2,
+  sum,
+  na.rm = TRUE
+)
+
+#p value two-tail
+p_value_peninsula_pext_prob <- (
+  1 +
+    sum(
+      null_auc_peninsula_pext <= observed_auc_peninsula_pext
+    )
+) / (
+  length(null_auc_peninsula_pext) + 1
+)
+
+# mean null auc peninsula pext
+mean_null_auc_peninsula_pext <- mean(
+  null_auc_peninsula_pext,
+  na.rm = TRUE
+)
+
+#CI null AUC peninsula
+ci_null_auc_peninsula_pext <- quantile(
+  null_auc_peninsula_pext,
+  probs = c(0.025, 0.975),
+  na.rm = TRUE
+)
 
 
-#null auc
-null_auc_peninsula_pext <- sapply(null_pd_curves_peninsula_pext,
-                                  function(curve) {
-                                    sum(curve, na.rm = TRUE)
-                                  })
+
 
 p_value_pext <- mean(null_auc_peninsula_pext <= observed_auc_peninsula_pext)
 
-
-#mean null auc
-mean_null_auc_peninsula_pext <- mean(null_auc_peninsula_pext)
-
-#confidence interval
-ci_null_auc_peninsula_pext <- quantile(null_auc_peninsula_pext,
-                                       probs = c(0.05, 0.975))
 
 # Prepare data for plotting the PD curves
 
@@ -632,20 +704,18 @@ write_csv(pd_curves_df_peninsula_pext, file = "Data/Processed/pd_curves_df_penin
 #reading
 pd_curves_df_peninsula_pext <- read_csv("Data/Processed/pd_curves_df_peninsula_pext.csv")
 
+
 # null PD curves for shading 
-max_len <- max(sapply(null_pd_curves_peninsula_pext, length))
+null_pd_summary_peninsula_pext <- cbind(step = 1:nrow(null_pd_curves_peninsula_pext),
+                                   null_pd_curves_peninsula_pext)
 
-null_pd_padded_pext <- lapply(null_pd_curves_peninsula_pext, function(curve) {
-  length(curve) <- max_len
-  return(curve)
-})
 
-#as df
-null_pd_summary_peninsula_pext <- as.data.frame(null_pd_padded_pext)
 
-colnames(null_pd_summary_peninsula_pext) <- paste0("Sim", 1:999)  # Name columns
+colnames(null_pd_summary_peninsula_pext) <- c("step", paste0("Sim", 1:999))  # Name columns
 
-null_pd_summary_peninsula_pext$step <- 1:nrow(null_pd_summary_peninsula_pext)
+##as dataframe
+null_pd_summary_peninsula_pext <- as.data.frame(null_pd_summary_peninsula_pext)
+
 
 ##saving
 write_csv(null_pd_summary_peninsula_pext,
@@ -725,50 +795,120 @@ dev.off()
 
 ########### probability of extinction ####################
 
-##calling the 'calculate_pd_curve_EDGE2' function, using probability of extinction (pext)
-pd_curves_andalusia_pext <- replicate(100, calculate_PD_curve_EDGE2(tree = andalusia_phylo,
-                                                                    df = EDGE2_andalusia))
+#plan for parallel processing
+plan(multisession,
+     workers = 5
+)
+
+#seed
+set.seed(13)
+
+
+n_observed <- 100
+
+#pd loss observed
+pd_curves_andalusia_pext_list <- future_lapply(
+  X = seq_len(n_observed),
+  FUN = function(i) {
+    
+    calculate_PD_curve_EDGE2(
+      tree = andalusia_phylo,
+      df = EDGE2_andalusia
+    )
+    
+  },
+  future.seed = TRUE
+)
+
+#check if the datsets have the same rows 
+table(lengths(pd_curves_andalusia_pext_list))
+
+#collapsing into one single matrix
+pd_curves_andalusia_pext <- do.call(
+  cbind,
+  pd_curves_andalusia_pext_list
+)
+
 
 ##calculating the observed area under the curve (AUC)
 mean_pd_curve_andalusia_pext <- rowMeans(pd_curves_andalusia_pext)
 observed_auc_andalusia_pext <- mean(colSums(pd_curves_andalusia_pext))
 
-##null pd curves
-
-##generating the null test
-set.seed(13)
-
-null_pd_curves_andalusia_pext <- lapply(1:999, function(i) {
-  
-  df_null <- EDGE2_andalusia
-  
-  # Shuffle extinction probabilities
-  df_null$pext <- sample(df_null$pext)
-  
-  # Recalculate PD curve
-  pd_curve_null <- calculate_PD_curve_EDGE2(
-    tree = andalusia_phylo,
-    df = df_null,
-    ranking = "sum_pext"
+# Null curves scores
+genus_scores <- EDGE2_andalusia %>%
+  distinct(
+    genus,
+    pext
   )
-  
-  return(pd_curve_null)
-})
+
+#running null pd curves
+null_pd_curves_andalusia_pext_list <- future_lapply(
+  seq_len(999),
+  function(i) {
+    
+    genus_scores_null <- genus_scores %>%
+      mutate(
+        pext = sample(
+          pext
+        )
+      )
+    
+    df_null <- EDGE2_andalusia %>%
+      select(-pext) %>%
+      left_join(
+        genus_scores_null,
+        by = "genus"
+      )
+    
+    calculate_PD_curve_EDGE2(
+      tree = andalusia_phylo,
+      df = df_null
+    )
+    
+  },
+  future.seed = TRUE
+)
+
+#collapsing into a single matrix
+null_pd_curves_andalusia_pext <- do.call(
+                                cbind,
+                                null_pd_curves_andalusia_pext_list
+                              )
+# Return to sequential processing
+plan(sequential)
+
+#null auc andalusia pext
+null_auc_andalusia_pext <- apply(
+                                null_pd_curves_andalusia_pext,
+                                2,
+                                sum,
+                                na.rm = TRUE
+                              )
+
+#p value two-tail
+p_value_andalusia_pext_prob <- (
+                              1 +
+                                sum(
+                                  null_auc_andalusia_pext <= observed_auc_andalusia_pext
+                                )
+                            ) / (
+                              length(null_auc_andalusia_pext) + 1
+                            )
+
+# mean null auc andalusia pext
+mean_null_auc_andalusia_pext <- mean(
+  null_auc_andalusia_pext,
+  na.rm = TRUE
+)
+
+#CI null AUC andalusia
+ci_null_auc_andalusia_pext <- quantile(
+  null_auc_andalusia_pext,
+  probs = c(0.025, 0.975),
+  na.rm = TRUE
+)
 
 
-#null auc
-null_auc_andalusia_pext <- sapply(null_pd_curves_andalusia_pext, function(curve) {
-  sum(curve, na.rm = TRUE)
-})
-
-p_value_pext <- mean(null_auc_andalusia_pext <= observed_auc_andalusia_pext)
-
-#mean null auc
-mean_null_auc_andalusia_pext <- mean(null_auc_andalusia_pext)
-
-#confidence interval
-ci_null_auc_andalusia_pext <- quantile(null_auc_andalusia_pext,
-                                       probs = c(0.05, 0.975))
 
 # Prepare data for plotting the PD curves
 
@@ -776,36 +916,34 @@ pd_curves_df_andalusia_pext <- data.frame(
   step = 1:length(mean_pd_curve_andalusia_pext),
   PD = mean_pd_curve_andalusia_pext)
 
-#saving
+##saving
 write_csv(pd_curves_df_andalusia_pext, file = "Data/Processed/pd_curves_df_andalusia_pext.csv")
 
 #reading
 pd_curves_df_andalusia_pext <- read_csv("Data/Processed/pd_curves_df_andalusia_pext.csv")
 
+
 # null PD curves for shading 
-max_len <- max(sapply(null_pd_curves_andalusia_pext, length))
+null_pd_summary_andalusia_pext <- cbind(step = 1:nrow(null_pd_curves_andalusia_pext),
+                                        null_pd_curves_andalusia_pext)
 
-null_pd_padded_pext <- lapply(null_pd_curves_andalusia_pext, function(curve) {
-  length(curve) <- max_len
-  return(curve)
-})
 
-#as df
-null_pd_summary_andalusia_pext <- as.data.frame(null_pd_padded_pext)
 
-colnames(null_pd_summary_andalusia_pext) <- paste0("Sim", 1:999)  # Name columns
+colnames(null_pd_summary_andalusia_pext) <- c("step", paste0("Sim", 1:999))  # Name columns
 
-null_pd_summary_andalusia_pext$step <- 1:nrow(null_pd_summary_andalusia_pext)
+##as dataframe
+null_pd_summary_andalusia_pext <- as.data.frame(null_pd_summary_andalusia_pext)
+
 
 ##saving
 write_csv(null_pd_summary_andalusia_pext,
           file = "Data/Processed/null_pd_curves_andalusia_pext.csv")
 
-#reading
-null_pd_curves_andalusia_pext <- read_csv("Data/processed/null_pd_curves_andalusia_pext.csv")
+##reading
+null_pd_summary_andalusia_pext <- read_csv("Data/Processed/null_pd_curves_andalusia_pext.csv")
 
 # Reshape to long format for ggplot
-long_df_andalusia_pext <- null_pd_curves_andalusia_pext %>%
+long_df_andalusia_pext <- null_pd_summary_andalusia_pext %>%
   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
 
 
@@ -870,158 +1008,6 @@ ggplot(null_auc_andalusia_pext_df, aes(x = null)) +
 
 
 dev.off()
-
-
-########################### EDGE ####################
-# 
-# ##calling the 'calculate_pd_curve_EDGE2' function, using EDGE
-# pd_curves_andalusia_edge <- replicate(100,
-#                                       calculate_PD_curve_EDGE2(tree = andalusia_phylo,
-#                                                                df = EDGE2_andalusia,
-#                                                                ranking = "sum_EDGE"))
-# 
-# ##calculating the observed area under the curve (AUC)
-# mean_pd_curve_andalusia_edge <- rowMeans(pd_curves_andalusia_edge)
-# observed_auc_andalusia_edge <- mean(colSums(pd_curves_andalusia_edge))
-# 
-# ##null pd curves
-# 
-# ##generating the null test
-# set.seed(13)
-# 
-# null_pd_curves_andalusia_edge <- lapply(1:99, function(i) {
-#   
-#   df_null <- EDGE2_andalusia
-#   
-#   # Shuffle extinction probabilities
-#   df_null$EDGE <- sample(df_null$EDGE)
-#   
-#   # Recalculate PD curve
-#   pd_curve_null <- calculate_PD_curve_EDGE2(
-#     tree = andalusia_phylo,
-#     df = df_null,
-#     ranking = "sum_EDGE"
-#   )
-#   
-#   return(pd_curve_null)
-# })
-# 
-# 
-# #null auc
-# null_auc_andalusia_edge <- sapply(null_pd_curves_andalusia_edge,
-#                                   function(curve) {
-#                                   sum(curve, na.rm = TRUE)
-#                                                      })
-# 
-# p_value_andalusia_edge <- mean(null_auc_andalusia_edge <= 
-#                                              observed_auc_andalusia_edge)
-# 
-# 
-# 
-# #mean null auc
-# mean_null_auc_andalusia_edge <- mean(null_auc_andalusia_edge)
-# 
-# #confidence interval
-# ci_null_auc_andalusia_edge <- quantile(null_auc_andalusia_edge, 
-#                                        probs = c(0.05, 0.975))
-# 
-# # Prepare data for plotting the PD curves
-# 
-# pd_curves_df_andalusia_edge <- data.frame(
-#   step = 1:length(mean_pd_curve_andalusia_edge),
-#   PD = mean_pd_curve_andalusia_edge)
-# 
-# #saving
-# write_csv(pd_curves_df_andalusia_edge,
-#           file = "Data/Processed/pd_curves_df_andalusia_edge.csv")
-# 
-# #reading
-# pd_curved_df_andalusia_edge <- read_csv("Data/Processed/pd_curves_df_andalusia_edge.csv")
-# 
-# # null PD curves for shading 
-# max_len <- max(sapply(null_pd_curves_andalusia_edge, length))
-# 
-# null_pd_padded_edge <- lapply(null_pd_curves_andalusia_edge, function(curve) {
-#   length(curve) <- max_len
-#   return(curve)
-# })
-# 
-# #as df
-# null_pd_summary_andalusia_edge <- as.data.frame(null_pd_padded_edge)
-# 
-# colnames(null_pd_summary_andalusia_edge) <- paste0("Sim", 1:99)  # Name columns
-# 
-# null_pd_summary_andalusia_edge$step <- 1:nrow(null_pd_summary_andalusia_edge)
-# 
-# ##saving
-# write_csv(null_pd_summary_andalusia_edge,
-#           file = "Data/Processed/null_pd_curves_andalusia_edge.csv")
-# 
-# ##reading
-# null_pd_summary_andalusia_edge <- read_csv("Data/Processed/null_pd_curves_andalusia_edge.csv")
-# 
-# # Reshape to long format for ggplot
-# long_df_andalusia_edge <- null_pd_summary_andalusia_edge %>%
-#   pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
-# 
-# 
-# 
-# # Plot the PD curves
-# svg("Figures/Figure_andalusia_PD_EDGE.svg",
-#     width = 14/2.54,
-#     height = 11/2.54)
-# 
-# pd_andalusia_EDGE_plot <- ggplot() +
-#   # Shaded area for the range of null PD curves
-#   geom_line(data = long_df_andalusia_edge,
-#             aes(x = step, y = PD), color = "gray", 
-#             size = 0.5, alpha = 0.5) +
-#   # Observed mean PD curve
-#   geom_line(data = pd_curves_df_andalusia_edge,
-#             aes(x = step, y = PD), color = "orange", size = 1.2) +
-#   # Overlay some null PD curves for illustration
-#   labs(
-#     x = NULL,
-#     y = NULL,
-#     title = "EDGE metric"
-#   ) +
-#   theme_classic() +
-#   mynamestheme
-# 
-# pd_andalusia_EDGE_plot
-# 
-# dev.off()
-# 
-# 
-# ##plotting AUC
-# 
-# # Convert the vector to a data frame
-# null_auc_andalusia_edge_df <- data.frame(null = null_auc_andalusia_edge)
-# 
-# #save
-# write_csv(null_auc_andalusia_edge_df, "Data/Processed/null_auc_andalusia_edge.csv")
-# 
-# # Create the histogram
-# 
-# svg("Figures/Figure_andalusia_AUC_EDGE.svg",
-#     width = 12/2.54,
-#     height = 10/2.54)
-# 
-# 
-# ggplot(null_auc_andalusia_edge_df, aes(x = null)) +
-#   geom_histogram( fill = "lightgray", color = "gray") +
-#   geom_vline(aes(xintercept = observed_auc_andalusia_edge), color = "orange",
-#              linetype = "solid", size = 1.5) +
-#   labs(y = "Frequency", x = "AUC") +
-#   theme_classic() +
-#   theme(axis.text.x = element_blank(),
-#         axis.ticks.x = element_blank(),
-#         axis.text.y = element_blank(),
-#         axis.ticks.y = element_blank())+
-#   mynamestheme
-# 
-# 
-# dev.off()
 
 
 # Combining plots ---------------------------------------------------------
