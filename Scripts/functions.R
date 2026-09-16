@@ -22,28 +22,6 @@ collapse_to_genus <- function(phylo, genus_map) {
 # Phylogenetic diversity loss experiment ----------------------------------
 
 
-# Function to calculate the PD curve and AUC#########
-calculate_PD_curve <- function(tree, df) {
-  pd_curve <- numeric(length(tree$tip.label))  # Placeholder for PD values
-  for (i in seq_along(tree$tip.label)) {
-    # 1. Select genus with the highest proportion of threatened species
-    max_genera <- df %>%
-      filter(proportion_threatened == max(proportion_threatened))
-    
-    selected_genus <- sample(max_genera$Genus, 1)
-    
-    # 2. Prune the selected genus from the tree
-    tree <- drop.tip(tree, selected_genus)
-    
-    # 3. Calculate PD for the pruned tree
-    pd_curve[i] <- sum(tree$edge.length)
-    
-    # Update the dataframe to exclude the pruned genus
-    df <- df %>% filter(Genus != selected_genus)
-  }
-  return(pd_curve)
-}
-
 
 ###### Calculating PD curve loss through whole-genus removal #########
 # based on the proportion of threatened species per genus
@@ -277,8 +255,99 @@ calculate_PD_curve_EDGE2 <- function(tree, df,
   return(pd_curve)
 }
 
+####### Species-level PD loss function
+calculate_PD_curve_species <- function(tree,
+                                       df,
+                                       ranking = "pext",
+                                       random_ties = TRUE,
+                                       tol = 0) {
+  
+  tree_sim <- tree
+  df_sim <- df
+  
+  if (!ranking %in% names(df_sim)) {
+    stop("The ranking variable is not present in df.")
+  }
+  
+  if (!"species" %in% names(df_sim)) {
+    stop("df must contain a 'species' column.")
+  }
+  
+  # Keep species present in the tree
+  df_sim <- df_sim %>%
+    filter(species %in% tree_sim$tip.label)
+  
+  # Require one row per species
+  if (anyDuplicated(df_sim$species) > 0) {
+    stop("df must contain one row per species.")
+  }
+  
+  # Remove missing scores
+  df_sim <- df_sim %>%
+    filter(!is.na(.data[[ranking]]))
+  
+  pd_curve <- numeric(0)
+  removed_species <- character(0)
+  
+  while (nrow(df_sim) > 0 && length(tree_sim$tip.label) > 1) {
+    
+    scores <- df_sim[[ranking]]
+    names(scores) <- df_sim$species
+    
+    max_value <- max(scores, na.rm = TRUE)
+    
+    # Species tied or near-tied with the maximum
+    candidates <- names(scores)[
+      abs(scores - max_value) <= tol
+    ]
+    
+    # Randomly break ties or near-ties
+    if (random_ties && length(candidates) > 1) {
+      selected_species <- sample(candidates, size = 1)
+    } else {
+      selected_species <- candidates[1]
+    }
+    
+    # Remove selected species
+    tree_sim <- drop.tip(
+      tree_sim,
+      tip = selected_species
+    )
+    
+    # Calculate remaining PD
+    pd_curve <- c(
+      pd_curve,
+      sum(tree_sim$edge.length, na.rm = TRUE)
+    )
+    
+    removed_species <- c(
+      removed_species,
+      selected_species
+    )
+    
+    # Update data frame
+    df_sim <- df_sim %>%
+      filter(species != selected_species)
+  }
+  
+  # Final remaining species
+  if (length(tree_sim$tip.label) == 1) {
+    
+    pd_curve <- c(pd_curve, 0)
+    
+    removed_species <- c(
+      removed_species,
+      tree_sim$tip.label
+    )
+  }
+  
+  list(
+    PD = pd_curve,
+    removed_species = removed_species
+  )
+}
 
-# Define a custom function to extract and format coefficients
+# Define a custom function to extract and format coefficients -------------
 tidy_rq_summary <- function(rq_sum) {
   
   require(dplyr)

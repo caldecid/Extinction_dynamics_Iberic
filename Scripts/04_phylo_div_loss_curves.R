@@ -1055,3 +1055,486 @@ print(combined_plot)
 
 dev.off()
 
+
+# pd loss species level as sensitivity analyses ---------------------------------
+
+## using only the EDGE2 probability of extinction per species
+
+########### Peninsular Spain #######################
+
+#plan for parallel processing
+plan(multisession,
+     workers = 5
+)
+
+#seed
+set.seed(13)
+
+
+n_observed <- 100
+
+#pd loss observed
+observed_peninsula_pext_curves_list <- future_lapply(
+  X = seq_len(n_observed),
+  FUN = function(i) {
+    
+    calculate_PD_curve_species(
+      tree = peninsula_phylo,
+      df = EDGE2_Peninsula,
+      ranking = "pext",
+      random_ties = TRUE,
+      tol = 1e-6
+    )$PD
+    
+  },
+  future.seed = TRUE
+)
+
+
+#colapse to matrix
+observed_peninsula_pext_matrix <- do.call(
+  cbind,
+  observed_peninsula_pext_curves_list
+)
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_peninsula_sp_pext <- rowMeans(observed_peninsula_pext_matrix)
+observed_auc_peninsula_sp_pext <- mean(colSums(observed_peninsula_pext_matrix))
+
+
+# Null curves scores
+species_scores <- EDGE2_Peninsula %>%
+  distinct(
+    species,
+    pext
+  )
+
+#running null pd curves
+null_pd_curves_peninsula_sp_pext_list <- future_lapply(
+  seq_len(999),
+  function(i) {
+    
+    species_scores_null <- species_scores %>%
+      mutate(
+        pext = sample(
+          pext
+        )
+      )
+    
+    df_null <- EDGE2_Peninsula %>%
+      select(-pext) %>%
+      left_join(
+        species_scores_null,
+        by = "species"
+      )
+    
+    calculate_PD_curve_species(
+      tree = peninsula_phylo,
+      df = df_null
+    )$PD
+    
+  },
+  future.seed = TRUE
+)
+
+#collapsing into a single matrix
+null_pd_curves_peninsula_sp_pext <- do.call(
+  cbind,
+  null_pd_curves_peninsula_sp_pext_list)
+
+# Return to sequential processing
+plan(sequential)
+
+#null auc peninsula_sp pext
+null_auc_peninsula_sp_pext <- apply(
+  null_pd_curves_peninsula_sp_pext,
+  2,
+  sum,
+  na.rm = TRUE
+)
+
+#p value two-tail
+p_value_peninsula_sp_pext_prob <- (
+  1 +
+    sum(
+      null_auc_peninsula_sp_pext <= observed_auc_peninsula_sp_pext
+    )
+) / (
+  length(null_auc_peninsula_sp_pext) + 1
+)
+
+# mean null auc peninsula_sp pext
+mean_null_auc_peninsula_sp_pext <- mean(
+  null_auc_peninsula_sp_pext,
+  na.rm = TRUE
+)
+
+#CI null AUC peninsula_sp
+ci_null_auc_peninsula_sp_pext <- quantile(
+  null_auc_peninsula_sp_pext,
+  probs = c(0.025, 0.975),
+  na.rm = TRUE
+)
+
+
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_peninsula_sp_pext <- data.frame(
+  step = 1:length(mean_pd_curve_peninsula_sp_pext),
+  PD = mean_pd_curve_peninsula_sp_pext)
+
+##saving
+write_csv(pd_curves_df_peninsula_sp_pext,
+  file = "Data/Processed/Sensitivity/PD_curves_sp/pd_curves_df_peninsula_sp_pext.csv")
+
+#reading
+pd_curves_df_peninsula_sp_pext <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/pd_curves_df_peninsula_sp_pext.csv")
+
+
+# null PD curves for shading 
+null_pd_summary_peninsula_sp_pext <- cbind(step = 1:nrow(null_pd_curves_peninsula_sp_pext),
+                                        null_pd_curves_peninsula_sp_pext)
+
+
+
+colnames(null_pd_summary_peninsula_sp_pext) <- c("step", paste0("Sim", 1:999))  # Name columns
+
+##as dataframe
+null_pd_summary_peninsula_sp_pext <- as.data.frame(null_pd_summary_peninsula_sp_pext)
+
+
+##saving
+write_csv(null_pd_summary_peninsula_sp_pext,
+          file = "Data/Processed/Sensitivity/PD_curves_sp/null_pd_curves_peninsula_sp_pext.csv")
+
+##reading
+null_pd_summary_peninsula_sp_pext <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/null_pd_curves_peninsula_sp_pext.csv")
+
+# Reshape to long format for ggplot
+long_df_peninsula_sp_pext <- null_pd_summary_peninsula_sp_pext %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Supplementary/Sensitivity/Figure_peninsula_sp_PD_pext.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_peninsula_sp_pext_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_peninsula_sp_pext,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_peninsula_sp_pext,
+            aes(x = step, y = PD), color = "blue", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = "Removed species",
+    y = NULL,
+    #title = "peninsula_sp Phylogenetic Diversity loss",
+    title = "Extinction probability"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_peninsula_sp_pext_plot + theme_shared
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_peninsula_sp_pext_df <- data.frame(null = null_auc_peninsula_sp_pext)
+
+#saving
+write_csv(null_auc_peninsula_sp_pext_df, "Data/Processed/Sensitivity/PD_curves_sp/null_auc_peninsula_sp_pext.csv")
+
+null_auc_peninsula_sp_pext_df <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/null_auc_peninsula_sp_pext.csv")
+
+# Create the histogram
+
+svg("Figures/Supplementary/Sensitivity/Figure_peninsula_sp_AUC_pext.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_peninsula_sp_pext_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_peninsula_sp_pext),
+             color = "blue",
+             linetype = "solid", size = 1.5) +
+  labs(y = NULL, x = NULL) +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()
+
+######################## Andalusia ####################################
+#plan for parallel processing
+plan(multisession,
+     workers = 6
+)
+
+#seed
+set.seed(13)
+
+
+n_observed <- 100
+
+#pd loss observed
+observed_andalusia_pext_curves_list <- future_lapply(
+  X = seq_len(n_observed),
+  FUN = function(i) {
+    
+    calculate_PD_curve_species(
+      tree = andalusia_phylo,
+      df = EDGE2_andalusia,
+      ranking = "pext",
+      random_ties = TRUE,
+      tol = 1e-6
+    )$PD
+    
+  },
+  future.seed = TRUE
+)
+
+
+#colapse to matrix
+observed_andalusia_pext_matrix <- do.call(
+  cbind,
+  observed_andalusia_pext_curves_list
+)
+
+##calculating the observed area under the curve (AUC)
+mean_pd_curve_andalusia_sp_pext <- rowMeans(observed_andalusia_pext_matrix)
+observed_auc_andalusia_sp_pext <- mean(colSums(observed_andalusia_pext_matrix))
+
+
+# Null curves scores
+species_scores <- EDGE2_andalusia %>%
+  distinct(
+    species,
+    pext
+  )
+
+#running null pd curves
+null_pd_curves_andalusia_sp_pext_list <- future_lapply(
+  seq_len(999),
+  function(i) {
+    
+    species_scores_null <- species_scores %>%
+      mutate(
+        pext = sample(
+          pext
+        )
+      )
+    
+    df_null <- EDGE2_andalusia %>%
+      select(-pext) %>%
+      left_join(
+        species_scores_null,
+        by = "species"
+      )
+    
+    calculate_PD_curve_species(
+      tree = andalusia_phylo,
+      df = df_null
+    )$PD
+    
+  },
+  future.seed = TRUE
+)
+
+#collapsing into a single matrix
+null_pd_curves_andalusia_sp_pext <- do.call(
+  cbind,
+  null_pd_curves_andalusia_sp_pext_list)
+
+# Return to sequential processing
+plan(sequential)
+
+#null auc andalusia_sp pext
+null_auc_andalusia_sp_pext <- apply(
+  null_pd_curves_andalusia_sp_pext,
+  2,
+  sum,
+  na.rm = TRUE
+)
+
+#p value two-tail
+p_value_andalusia_sp_pext_prob <- (
+  1 +
+    sum(
+      null_auc_andalusia_sp_pext <= observed_auc_andalusia_sp_pext
+    )
+) / (
+  length(null_auc_andalusia_sp_pext) + 1
+)
+
+# mean null auc andalusia_sp pext
+mean_null_auc_andalusia_sp_pext <- mean(
+  null_auc_andalusia_sp_pext,
+  na.rm = TRUE
+)
+
+#CI null AUC andalusia_sp
+ci_null_auc_andalusia_sp_pext <- quantile(
+  null_auc_andalusia_sp_pext,
+  probs = c(0.025, 0.975),
+  na.rm = TRUE
+)
+
+
+
+# Prepare data for plotting the PD curves
+
+pd_curves_df_andalusia_sp_pext <- data.frame(
+  step = 1:length(mean_pd_curve_andalusia_sp_pext),
+  PD = mean_pd_curve_andalusia_sp_pext)
+
+##saving
+write_csv(pd_curves_df_andalusia_sp_pext,
+          file = "Data/Processed/Sensitivity/PD_curves_sp/pd_curves_df_andalusia_sp_pext.csv")
+
+#reading
+pd_curves_df_andalusia_sp_pext <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/pd_curves_df_andalusia_sp_pext.csv")
+
+
+# null PD curves for shading 
+null_pd_summary_andalusia_sp_pext <- cbind(step = 1:nrow(null_pd_curves_andalusia_sp_pext),
+                                           null_pd_curves_andalusia_sp_pext)
+
+
+
+colnames(null_pd_summary_andalusia_sp_pext) <- c("step", paste0("Sim", 1:999))  # Name columns
+
+##as dataframe
+null_pd_summary_andalusia_sp_pext <- as.data.frame(null_pd_summary_andalusia_sp_pext)
+
+
+##saving
+write_csv(null_pd_summary_andalusia_sp_pext,
+          file = "Data/Processed/Sensitivity/PD_curves_sp/null_pd_curves_andalusia_sp_pext.csv")
+
+##reading
+null_pd_summary_andalusia_sp_pext <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/null_pd_curves_andalusia_sp_pext.csv")
+
+# Reshape to long format for ggplot
+long_df_andalusia_sp_pext <- null_pd_summary_andalusia_sp_pext %>%
+  pivot_longer(cols = -step, names_to = "Simulation", values_to = "PD")
+
+
+
+# Plot the PD curves
+svg("Figures/Supplementary/Sensitivity/Figure_andalusia_sp_PD_pext.svg",
+    width = 14/2.54,
+    height = 11/2.54)
+
+pd_andalusia_sp_pext_plot <- ggplot() +
+  # Shaded area for the range of null PD curves
+  geom_line(data = long_df_andalusia_sp_pext,
+            aes(x = step, y = PD), color = "gray", 
+            size = 0.5, alpha = 0.5) +
+  # Observed mean PD curve
+  geom_line(data = pd_curves_df_andalusia_sp_pext,
+            aes(x = step, y = PD), color = "orange", size = 1.2) +
+  # Overlay some null PD curves for illustration
+  labs(
+    x = "Removed species",
+    y = NULL,
+    #title = "andalusia_sp Phylogenetic Diversity loss",
+    title = "Extinction probability"
+  ) +
+  theme_classic() +
+  mynamestheme
+
+pd_andalusia_sp_pext_plot + theme_shared
+
+dev.off()
+
+
+##plotting AUC
+
+# Convert the vector to a data frame
+null_auc_andalusia_sp_pext_df <- data.frame(null = null_auc_andalusia_sp_pext)
+
+#saving
+write_csv(null_auc_andalusia_sp_pext_df, "Data/Processed/Sensitivity/PD_curves_sp/null_auc_andalusia_sp_pext.csv")
+
+null_auc_andalusia_sp_pext_df <- read_csv("Data/Processed/Sensitivity/PD_curves_sp/null_auc_andalusia_sp_pext.csv")
+
+# Create the histogram
+
+svg("Figures/Supplementary/Sensitivity/Figure_andalusia_sp_AUC_pext.svg",
+    width = 12/2.54,
+    height = 10/2.54)
+
+
+ggplot(null_auc_andalusia_sp_pext_df, aes(x = null)) +
+  geom_histogram( fill = "lightgray", color = "gray") +
+  geom_vline(aes(xintercept = observed_auc_andalusia_sp_pext),
+             color = "orange",
+             linetype = "solid", size = 1.5) +
+  labs(y = NULL, x = NULL) +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  mynamestheme
+
+
+dev.off()
+
+# Combining plots ---------------------------------------------------------
+
+theme_shared <- theme_classic() +
+  mynamestheme +
+  theme(
+    plot.title = element_text(size = 13, face = "italic"),
+    axis.title = element_text(size = 13)
+  )
+
+#individual plots
+pd_peninsula_sp_pext_plot <- pd_peninsula_sp_pext_plot + theme_shared
+pd_andalusia_sp_pext_plot <- pd_andalusia_sp_pext_plot + theme_shared
+
+
+
+
+# Create row titles
+title_peninsula <- ggplot() +
+  annotate("text", x = 0, y = 0, label = "Peninsular Spain",
+           hjust = 0.5, size = 5, fontface = "bold", family = "serif") +
+  theme_void()
+
+title_andalusia <- ggplot() +
+  annotate("text", x = 0, y = 0, label = "Eastern Andalusia",
+           hjust = 0.5, size = 5, fontface = "bold", family = "serif") +
+  theme_void()
+
+
+combined_plot_sp <-
+  (title_peninsula) /
+  (pd_peninsula_sp_pext_plot) /
+  (title_andalusia) /
+  (pd_andalusia_sp_pext_plot) +
+  plot_layout(heights = c(0.08, 1, 0.08, 1)) 
+
+#saving
+svg("Figures/Supplementary/Sensitivity/Figure_PD_loss_regions_sp.svg",
+    width = 11/2.54,   # convert cm → inches
+    height = 16/2.54)
+
+print(combined_plot_sp)
+
+dev.off()
